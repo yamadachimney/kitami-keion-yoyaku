@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>北見工大 軽音予約</title>
+<meta name="description" content="北見工大 軽音サークルの部室予約">
+<meta name="theme-color" content="#2448d6">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="軽音予約">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: 練習表と同じ「時間 × 曜日」の週間表を主役に、希望一覧と管理は別タブ。予約はタップで下からシートが開く。 */
+:root{
+  --bg:#f2f3f6; --surface:#ffffff; --ink:#161a24; --muted:#5d6577; --line:#d9dce5; --line2:#eceef3;
+  --accent:#2448d6; --accent-ink:#ffffff;
+  --band:#2c55d6; --drum:#b8700f; --other:#2f8248; --on-kind:#ffffff;
+  --c0:#2c55d6; --c1:#b33a3a; --c2:#2f8248; --c3:#9a6a12; --cm:#33363e;
+  --bad:#c23b3b; --ok:#23804f; --warn-bg:#fff5df;
+  --h:24px; --tw:54px;
+  --f-d:'Zen Kaku Gothic New','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
+  --f-m:'DM Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1218; --surface:#171b24; --ink:#eef0f6; --muted:#9aa3b6; --line:#2a3040; --line2:#212736;
+    --accent:#86a0ff; --accent-ink:#0d1017;
+    --band:#6a8dff; --drum:#e39b3c; --other:#58b774; --on-kind:#0d1017;
+    --c0:#7d9bff; --c1:#ff8a80; --c2:#6cc98a; --c3:#e8b44f; --cm:#c3c8d3;
+    --bad:#ff8080; --ok:#5cc58f; --warn-bg:#2a2414; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1218; --surface:#171b24; --ink:#eef0f6; --muted:#9aa3b6; --line:#2a3040; --line2:#212736;
+  --accent:#86a0ff; --accent-ink:#0d1017;
+  --band:#6a8dff; --drum:#e39b3c; --other:#58b774; --on-kind:#0d1017;
+  --c0:#7d9bff; --c1:#ff8a80; --c2:#6cc98a; --c3:#e8b44f; --cm:#c3c8d3;
+  --bad:#ff8080; --ok:#5cc58f; --warn-bg:#2a2414; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-d);font-size:14px;line-height:1.55;padding-inline:max(16px,env(safe-area-inset-left,0px));padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(40px + env(safe-area-inset-bottom,0px));-webkit-tap-highlight-color:transparent}
+.app{max-width:1000px;margin-inline:auto;display:flex;flex-direction:column;gap:12px}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand h1{margin:0;font-size:26px;font-weight:900;letter-spacing:.02em}
+.brand span{color:var(--muted);font-size:12px}
+.weeknav{display:flex;align-items:center;gap:6px}
+.weeknav .label{min-width:9.5em;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;font-weight:500;min-height:38px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.danger{color:var(--bad)}
+.btn.sm{padding:3px 9px;min-height:30px;font-size:12.5px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.icon{width:38px;padding:0;font-size:18px;line-height:1}
+
+.banner{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between}
+.banner .msg{flex:1 1 260px;min-width:0}
+.banner b{font-weight:700}
+.phase{display:inline-block;font-size:12px;font-weight:700;border-radius:99px;padding:1px 10px;margin-right:6px;background:var(--line2)}
+.phase.request{background:var(--warn-bg);color:var(--drum)}
+.phase.free{background:color-mix(in srgb,var(--ok) 16%,var(--surface));color:var(--ok)}
+.rank{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:3px;gap:2px;align-self:flex-start}
+.tabs button{border:0;background:none;padding:6px 16px;border-radius:7px;font-weight:700;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.legend .pend{background:transparent;border:1.5px dashed var(--muted)}
+
+.grid-wrap{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:auto;max-height:74vh;min-height:320px}
+.gh,.gb{display:grid;grid-template-columns:var(--tw) repeat(7,minmax(86px,1fr));min-width:calc(var(--tw) + 7*86px)}
+.gh{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.gh .dh{padding:6px 4px;text-align:center;border-left:1px solid var(--line2);line-height:1.25}
+.gh .dh b{display:block;font-size:14px}
+.gh .dh span{font-family:var(--f-m);font-size:12px;color:var(--muted)}
+.gh .dh.today{background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.gh .dh.sat b{color:var(--accent)}
+.corner,.tcol{position:sticky;left:0;z-index:4;background:var(--surface)}
+.tcol{border-right:1px solid var(--line2)}
+.tcol div{height:var(--h);font-family:var(--f-m);font-size:11px;color:var(--muted);text-align:right;padding:2px 6px 0 0;line-height:1}
+.tcol div.hr{color:var(--ink);font-weight:500}
+.day{position:relative;height:calc(24*var(--h));border-left:1px solid var(--line2);cursor:cell;
+  background-image:linear-gradient(var(--line2) 1px,transparent 1px);background-size:100% calc(2*var(--h))}
+.day.today{background-color:color-mix(in srgb,var(--accent) 5%,var(--surface))}
+.day.ro{cursor:default}
+.ghost{position:absolute;left:3px;right:3px;border-radius:6px;background:color-mix(in srgb,var(--accent) 22%,transparent);border:1.5px solid var(--accent);pointer-events:none;z-index:2}
+
+.blk{position:absolute;z-index:3;border-radius:6px;padding:3px 6px;text-align:left;overflow:hidden;border:1.5px solid var(--kc);
+  background:var(--kc);color:var(--on-kind);display:flex;flex-direction:column;gap:0;line-height:1.25;min-width:0}
+.cm{--kc:var(--cm)} .c0{--kc:var(--c0)} .c1{--kc:var(--c1)} .c2{--kc:var(--c2)} .c3{--kc:var(--c3)}
+.blk .n{font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blk .t{font-family:var(--f-m);font-size:10.5px;opacity:.85;white-space:nowrap}
+.blk.pending{background:color-mix(in srgb,var(--kc) 15%,var(--surface));border-style:dashed;color:var(--ink)}
+.blk.saving{opacity:.55}
+.blk.mine{box-shadow:0 0 0 2px var(--ink)}
+.plan{position:absolute;left:0;right:0;border-radius:4px;background:var(--kc);color:var(--on-kind);padding:2px 5px;overflow:hidden;display:flex;flex-direction:column;line-height:1.25}
+.clashbox.okbox{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 8%,var(--surface))}
+.clashbox.okbox .ttl{color:var(--ok)}
+.tag{position:absolute;right:2px;top:2px;z-index:5;font-size:10px;font-weight:700;line-height:1.5;padding:0 5px;border-radius:4px;white-space:nowrap}
+.tag.bad{background:var(--bad);color:#fff}
+.tag.ok{background:var(--surface);color:var(--drum);border:1px solid var(--drum)}
+.clashzone.ok{border-color:var(--drum);background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--drum) 26%,transparent) 0 5px,transparent 5px 10px)}
+.strip{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px}
+.strip .sum{display:flex;flex-wrap:wrap;gap:4px 16px;font-weight:700}
+.strip .n-bad{color:var(--bad)} .strip .n-ok{color:var(--drum)}
+.jump{display:flex;gap:8px;align-items:center;text-align:left;border:1px solid var(--bad);background:color-mix(in srgb,var(--bad) 7%,var(--surface));border-radius:8px;padding:6px 10px;width:100%;min-width:0}
+.jump span:last-child{min-width:0;overflow-wrap:anywhere}
+.tl{display:flex;flex-direction:column;gap:6px;margin:2px 0 4px}
+.tl .ax{position:relative;height:14px;font-family:var(--f-m);font-size:10px;color:var(--muted)}
+.tl .ax span{position:absolute;transform:translateX(-50%)}
+.tl .ax span:first-child{transform:none}.tl .ax span:last-child{transform:translateX(-100%)}
+.tl .lbl{font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.tl .tr{position:relative;height:24px;border-radius:5px;background:var(--line2);background-image:linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:calc(100%/4) 100%}
+.tl .bar{position:absolute;top:2px;bottom:2px;border-radius:4px;border:1.5px dashed var(--kc);background:color-mix(in srgb,var(--kc) 16%,var(--surface))}
+.tl .bar.band,.tl .pl.band{--kc:var(--band)} .tl .bar.drum,.tl .pl.drum{--kc:var(--drum)} .tl .bar.other,.tl .pl.other{--kc:var(--other)}
+.tl .bar.solid{background:var(--kc);border-style:solid}
+.tl .pl{position:absolute;top:5px;bottom:5px;border-radius:3px;background:var(--kc)}
+.tl .ov{position:absolute;top:0;bottom:0;border-left:2px solid var(--bad);border-right:2px solid var(--bad);background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--bad) 45%,transparent) 0 4px,transparent 4px 8px)}
+.tl .ov.ok{border-color:var(--drum);background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--drum) 40%,transparent) 0 4px,transparent 4px 8px)}
+.blk.clash-x::after{content:"";position:absolute;right:3px;top:2px;font-size:10px;font-weight:700;color:var(--bad);background:var(--surface);border-radius:4px;padding:0 4px}
+.empty-hint{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+
+.card{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.card h2{margin:0;font-size:15px;font-weight:700}
+.card p{margin:0;color:var(--muted);font-size:13px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:8px 14px;font-weight:700;color:var(--muted);border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.rankrow{display:flex;align-items:center;gap:10px}
+.rankrow .no{font-family:var(--f-m);width:3.2em;color:var(--muted);font-size:12.5px}
+select,input[type=text]{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;min-height:38px;max-width:100%}
+.sel-sm{min-height:30px;padding:2px 6px;font-size:12.5px}
+
+.list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line2)}
+.li:first-child{border-top:0}
+.li .dot{width:10px;height:36px;border-radius:4px;background:var(--kc)}
+.li.band{--kc:var(--band)} .li.drum{--kc:var(--drum)} .li.other{--kc:var(--other)}
+.li .nm{font-weight:700;overflow-wrap:anywhere}
+.li .meta{font-family:var(--f-m);font-size:12px;color:var(--muted)}
+.li .acts{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:center}
+.li.rejected{opacity:.55}
+.chip{font-size:11.5px;font-weight:700;border-radius:99px;padding:1px 9px;background:var(--line2);color:var(--muted);white-space:nowrap}
+.chip.pending{background:var(--warn-bg);color:var(--drum)}
+.chip.confirmed{background:color-mix(in srgb,var(--ok) 15%,var(--surface));color:var(--ok)}
+.chip.rejected{color:var(--bad)}
+@media (max-width:560px){.li{grid-template-columns:auto minmax(0,1fr)}.li .acts{grid-column:1/-1;justify-content:flex-start}}
+
+.clashzone{position:absolute;left:0;right:0;z-index:4;pointer-events:none;border-top:2px solid var(--bad);border-bottom:2px solid var(--bad);
+  background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--bad) 30%,transparent) 0 5px,transparent 5px 10px)}
+.clashbox{border:1.5px solid var(--bad);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--bad) 7%,var(--surface))}
+.clashbox .ttl{font-weight:700;color:var(--bad);font-size:13px}
+.clashbox .hint{font-size:12.5px;color:var(--muted)}
+.cl{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line2);padding-top:8px}
+.cl:first-of-type{border-top:0;padding-top:0}
+.cl .dot{width:8px;align-self:stretch;border-radius:4px;background:var(--kc);flex:none}
+.cl.band{--kc:var(--band)} .cl.drum{--kc:var(--drum)} .cl.other{--kc:var(--other)}
+.cl .who{font-weight:700;overflow-wrap:anywhere}
+.cl .sub{font-family:var(--f-m);font-size:12px;color:var(--muted)}
+.calrow{gap:6px}
+.btn.cal{display:inline-flex;align-items:center;text-decoration:none;color:var(--ink)}
+.btn.cal.primary{color:var(--accent-ink)}
+.today{display:flex;flex-direction:column;gap:12px}
+.nowcard{border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;border:1.5px solid var(--line);background:var(--surface)}
+.nowcard.busy{background:var(--kc);border-color:var(--kc);color:var(--on-kind)}
+.nowcard.free{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,var(--surface))}
+.nowbig{font-size:20px;font-weight:900;line-height:1.35;overflow-wrap:anywhere}
+.nowsub{font-size:14px;font-weight:500;opacity:.9;font-variant-numeric:tabular-nums}
+.dayh{margin:4px 0 0;font-size:17px;font-weight:900}
+.tlist{display:flex;flex-direction:column;gap:8px}
+.ti{display:grid;grid-template-columns:7.2em minmax(0,1fr);gap:12px;align-items:center;border-radius:12px;padding:12px 14px;text-align:left;width:100%;font:inherit;color:inherit}
+.ti .tt{font-family:var(--f-m);font-size:13.5px;font-weight:500;font-variant-numeric:tabular-nums}
+.ti .tb{min-width:0;display:flex;flex-direction:column;gap:2px}
+.ti.bk{border:0;border-left:8px solid var(--kc);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
+.ti.bk.now{box-shadow:inset 0 0 0 2px var(--ok)}
+.ti.bk.mine{box-shadow:inset 0 0 0 2px var(--ink)}
+.ti .tn{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:16px;font-weight:700}
+.ti .tn span:first-child{overflow-wrap:anywhere}
+.ti .meta{font-size:12.5px;color:var(--muted)}
+.ti.free{border:1.5px dashed var(--line);background:transparent}
+.ti.free .tb{flex-direction:row;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.freel{color:var(--ok);font-weight:700;font-size:14px}
+.ti.past{opacity:.45}
+.install{display:flex;flex-direction:column;gap:8px;border:1.5px solid var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-radius:12px;padding:12px 14px}
+.install .imsg{font-weight:700;font-size:13.5px}
+.gstep{display:flex;gap:12px;align-items:flex-start;font-size:15px;font-weight:700;line-height:1.5}
+.gstep b{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center}
+.shareic{display:inline-block;width:18px;height:20px;vertical-align:-3px;background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 22' fill='none' stroke='%232448d6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 14V2M5 6l4-4 4 4'/%3E%3Cpath d='M6 9H3v11h12V9h-3'/%3E%3C/svg%3E")}
+.scrim{position:fixed;inset:0;background:rgba(10,12,18,.5);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:460px;background:var(--surface);border-radius:16px 16px 0 0;padding:16px 18px;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;max-height:92%;overflow:auto}
+@media (min-width:640px){.scrim{align-items:center}.sheet{border-radius:16px}}
+.sheet h3{margin:0;font-size:18px;font-weight:900}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field>label,.field>.lb{font-size:12px;font-weight:700;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.quick{display:flex;flex-wrap:wrap;gap:6px}
+.err{color:var(--bad);font-size:13px;min-height:1.2em}
+.big{font-size:20px;font-weight:900}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:99px;font-weight:700;z-index:30;max-width:90%;text-align:center}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.4}}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><h1>北見工大 軽音予約</h1><span>部室</span></div>
+    <div class="weeknav">
+      <button class="btn icon" id="prev" aria-label="前の週">‹</button>
+      <div class="label" id="weekLabel"></div>
+      <button class="btn icon" id="next" aria-label="次の週">›</button>
+      <button class="btn" id="goNow">今週</button>
+    </div>
+  </header>
+  <section id="installBox"></section>
+  <section class="banner" id="banner"></section>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <main id="view"></main>
+  <div id="foot" style="text-align:center;color:var(--muted);font-size:12.5px"></div>
+</div>
+<div id="layer"></div>
+<div id="toastBox"></div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+(function(){
+'use strict';
+const SLOTS=24, H=24;
+const DAYS=['月','火','水','木','金','土','日'];
+const KINDS={band:'バンド練習',drum:'ドラム練習',other:'その他'};
+const KEYS=['band','drum','other'];
+const PHASES={closed:'準備中',request:'希望募集中',free:'自由予約'};
+const S={ws:'',cfg:{},reqs:[],tab:'grid',uid:'',pin:'',isAdmin:false,plan:{place:new Map(),bad:new Set()},armed:false,loading:true,fail:'',seq:0,busy:false,showAll:true,pending:0};
+
+/* ---------- helpers ---------- */
+function h(tag,attrs,kids){
+  const el=document.createElement(tag);
+  if(attrs)for(const k in attrs){
+    const v=attrs[k];
+    if(v==null||v===false)continue;
+    if(k==='class')el.className=v;
+    else if(k==='text')el.textContent=v;
+    else if(k.slice(0,2)==='on')el.addEventListener(k.slice(2),v);
+    else if(k==='style')el.style.cssText=v;
+    else if(v===true)el.setAttribute(k,'');
+    else el.setAttribute(k,v);
+  }
+  (kids||[]).forEach(c=>{if(c==null||c===false)return;el.append(c.nodeType?c:document.createTextNode(c));});
+  return el;
+}
+const $=id=>document.getElementById(id);
+function pad(n){return String(n).padStart(2,'0')}
+function isoOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function addDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function mondayOf(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const w=(x.getDay()+6)%7;x.setDate(x.getDate()-w);return isoOf(x)}
+function md(iso){const p=iso.split('-');return (+p[1])+'/'+(+p[2])}
+function tm(i){return (9+Math.floor(i/2))+':'+(i%2?'30':'00')}
+function range(r){return tm(r.s)+'–'+tm(r.e)}
+function defaultWeek(){const n=new Date();const m=mondayOf(n);return n.getDay()===6||n.getDay()===0?addDays(m,7):m}
+function esc(s){return String(s==null?'':s)}
+function toast(t){
+  const b=$('toastBox');b.replaceChildren(h('div',{class:'toast',role:'status',text:t}));
+  clearTimeout(toast.t);toast.t=setTimeout(()=>b.replaceChildren(),2600);
+}
+function lsGet(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+/* ---------- derived data ---------- */
+function phase(){return S.cfg.phase||'closed'}
+function order(){const o=S.cfg.order;return Array.isArray(o)&&o.length===3?o:KEYS.slice()}
+function rankOf(k){const i=order().indexOf(k);return i<0?9:i}
+function live(){return S.reqs.filter(r=>r.status!=='rejected')}
+function overlap(a,b){return a.day===b.day&&a.s<b.e&&b.s<a.e}
+function clashes(r){
+  return live().filter(o=>o.id!==r.id&&overlap(r,o)).map(o=>({o:o,s:Math.max(r.s,o.s),e:Math.min(r.e,o.e)})).sort((a,b)=>a.s-b.s);
+}
+function maxSlots(){return S.cfg.maxSlots||4}
+function durOf(r){return Math.max(1,Math.min(r.dur||(r.e-r.s),r.e-r.s))}
+function durLabel(n){const h=Math.floor(n/2);return (h?h+'時間':'')+(n%2?'30分':'')}
+/* 希望は「練習できる時間帯（s〜e）」＋「練習時間（dur）」。時間帯が被っていても、
+   その中でずらして全員入るなら被りとは扱わず、優先度順に仮配置する */
+
+/* 申し込む前のシミュレーション用（サーバーと同じ計算） */
+function feasible(items,occ){
+  const list=items.slice().sort((a,b)=>((a.e-a.s-a.dur)-(b.e-b.s-b.dur))||a.s-b.s);
+  const used=occ.slice(),res=new Map();let nodes=0;
+  function go(k){
+    if(k===list.length)return true;
+    if(++nodes>40000)return false;
+    const r=list[k];
+    for(let t=r.s;t+r.dur<=r.e;t++){
+      let ok=true;
+      for(let i=t;i<t+r.dur;i++)if(used[i]){ok=false;break}
+      if(!ok)continue;
+      for(let i=t;i<t+r.dur;i++)used[i]=true;
+      res.set(r.id,t);
+      if(go(k+1))return true;
+      for(let i=t;i<t+r.dur;i++)used[i]=false;
+    }
+    return false;
+  }
+  return go(0)?res:null;
+}
+function simulate(items){
+  const occ=new Array(SLOTS).fill(false);
+  items.filter(r=>r.status==='confirmed').forEach(r=>{for(let i=r.s;i<r.e;i++)occ[i]=true});
+  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:durOf(r)})).sort(byDecision);
+  let acc=[],cur=new Map();const bad=new Set();
+  pend.forEach(r=>{const t=acc.concat([r]),f=feasible(t,occ);if(f){acc=t;cur=f}else bad.add(r.id)});
+  return {place:cur,bad:bad};
+}
+/* 表示用の仮配置（優先度順・先着順で、時間帯の中に並べる） */
+function computePlan(){
+  const place=new Map(),bad=new Set();
+  for(let d=0;d<7;d++){
+    const r=simulate(S.reqs.filter(x=>x.day===d&&x.status!=='rejected'));
+    r.place.forEach((v,k)=>place.set(k,v));r.bad.forEach(k=>bad.add(k));
+  }
+  S.plan={place:place,bad:bad};
+}
+function conflicts(r){return r.status==='pending'&&S.plan.bad.has(r.id)}
+function nm(r){return r.band||r.rep||'名無し'}
+/* 希望募集中は、管理者以外の週間表には確定済みと自分の希望だけを出す */
+function visible(){
+  const all=live();
+  if(S.isAdmin||phase()!=='request'||S.showAll)return all;
+  return all.filter(r=>r.status==='confirmed'||mine(r));
+}
+function byDecision(a,b){return rankOf(a.kind)-rankOf(b.kind)||(a.createdAt||0)-(b.createdAt||0)}
+function mine(r){return !!r.mine}
+function canAdd(){return phase()!=='closed'}
+
+
+/* ---------- data layer（Firebase Realtime Database） ----------
+   ・予約は weeks/<週>/reqs/<id> に1件ずつ保存
+   ・確定した予約は weeks/<週>/slots/<曜日>_<コマ> に「枠の札」を置く。
+     札はすでにあると置けない（ルールで保証）ので、同時に押しても二重予約にならない
+   ・運営は共有の運営アカウントにログイン（暗証番号＝そのパスワード）。権限はFirebase側で確認 */
+let FBX={db:null,auth:null,adminAuth:null,adminDb:null,ref:null,refWs:''};
+const ADMIN_EMAIL=(window.FB_ADMIN_EMAIL||'unei@kitami-keion.example');
+
+function fbReady(){return !!FBX.db}
+function fbInit(){
+  if(!window.firebase||!window.FB_CONFIG||!window.FB_CONFIG.apiKey){S.fail='設定（firebase-config.js）が読み込めませんでした';return false}
+  firebase.initializeApp(window.FB_CONFIG);
+  FBX.db=firebase.database();FBX.auth=firebase.auth();
+  const a2=firebase.initializeApp(window.FB_CONFIG,'admin');
+  FBX.adminAuth=a2.auth();FBX.adminDb=a2.database();
+  return true;
+}
+function DB(){return S.isAdmin?FBX.adminDb:FBX.db}
+function wref(ws){return DB().ref('weeks/'+ws)}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function fbErr(e,ctx){
+  const code=(e&&(e.code||e.message)||'')+'';
+  const err=new Error(
+    /PERMISSION_DENIED|permission/i.test(code)?(ctx==='slot'?'その時間にはすでに予約があります（タッチの差で先に取られたかも）':'保存できませんでした。募集期間外か、上限を超えているかもしれません')
+    :/network|disconnected|offline|unavailable/i.test(code)?'通信がうまくいきませんでした。電波のいい所でもう一度押してください'
+    :/wrong-password|invalid-credential|invalid-login|user-not-found|INVALID_LOGIN/i.test(code)?'暗証番号が違います'
+    :/too-many-requests/i.test(code)?'何度も間違えたので、少し時間をおいてください'
+    :(e&&e.message)||'保存できませんでした');
+  err.code=code;return err;
+}
+function slotKeys(r){const a=[];for(let i=r.s;i<r.e;i++)a.push(r.day+'_'+i);return a}
+function clean(r){
+  const o={uid:r.uid||S.uid,band:r.band||'',rep:r.rep,kind:r.kind,day:r.day,s:r.s,e:r.e,dur:r.dur||(r.e-r.s),status:r.status,createdAt:r.createdAt||Date.now()};
+  if(r.ws!=null)o.ws=r.ws;if(r.we!=null)o.we=r.we;
+  return o;
+}
+
+/* 週のデータを受け取って画面用に整える */
+function apply(val){
+  val=val||{};
+  const c=val.cfg||{};
+  const ord=c.order?(Array.isArray(c.order)?c.order:[c.order[0],c.order[1],c.order[2]]):null;
+  S.cfg=c.phase?{phase:c.phase,order:ord,maxSlots:c.maxSlots||4}:{};
+  const rs=val.reqs||{};
+  S.reqs=Object.keys(rs).map(id=>Object.assign({id:id},rs[id],{mine:!!S.uid&&rs[id].uid===S.uid}));
+  S.slots=val.slots||{};
+  computePlan();
+}
+/* 表示中の週をリアルタイムで受け取る（他の人の予約もすぐ反映） */
+function load(quiet){
+  if(!fbReady())return;
+  if(FBX.ref&&FBX.refWs===S.ws){if(!quiet)render();return}
+  if(FBX.ref)FBX.ref.off();
+  const ws=S.ws;
+  S.loading=true;S.armed=false;S.cfg={};S.reqs=[];S.slots={};S.plan={place:new Map(),bad:new Set()};render();
+  FBX.refWs=ws;FBX.ref=FBX.db.ref('weeks/'+ws);
+  FBX.ref.on('value',snap=>{
+    if(ws!==S.ws)return;
+    apply(snap.val());S.loading=false;S.fail='';render();
+  },e=>{S.loading=false;S.fail=fbErr(e).message;render()});
+}
+
+/* 画面側からの呼び出し口（Apps Script版と同じ名前で使えるようにしている） */
+async function api(fn){
+  const a=Array.prototype.slice.call(arguments,1);
+  switch(fn){
+    case 'getAppUrl':return location.origin+location.pathname;
+    case 'checkPin':return checkPin(a[0]);
+    case 'addReq':return dbAdd(a[0]);
+    case 'updateReq':return dbUpdate(a[0],a[1]);
+    case 'deleteReq':return dbDelete(a[0]);
+    case 'saveCfg':return dbSaveCfg(a[0],a[1]);
+    case 'confirmAll':return dbConfirmAll(a[0]);
+    case 'rebuildSheet':exportImage();return true;
+    case 'archiveOld':return {moved:0};
+    default:throw new Error('未対応の操作です：'+fn);
+  }
+}
+async function mutate(fn,args,okMsg){
+  try{const r=await api.apply(null,[fn].concat(args));if(okMsg)toast(okMsg);render();return r}
+  catch(e){toast(e.message||'保存できませんでした');render();throw e}
+}
+async function optimistic(change,fn,args,okMsg){
+  /* Realtime Database は書いた瞬間に画面へ反映され、失敗すると自動で元に戻る */
+  try{const r=await api.apply(null,[fn].concat(args));if(okMsg)toast(okMsg);return r}
+  catch(e){toast(e.message||'保存できませんでした');throw e}
+}
+async function saveCfg(patch){try{await mutate('saveCfg',[S.ws,patch])}catch(e){}}
+async function addReq(o){return optimistic(null,'addReq',[Object.assign({week:S.ws},o)])}
+async function updReq(id,patch){return optimistic(null,'updateReq',[id,patch])}
+async function patchReq(id,patch){try{await updReq(id,patch)}catch(e){}}
+async function delReq(id){try{await optimistic(null,'deleteReq',[id])}catch(e){}}
+
+async function checkPin(pin){
+  try{await FBX.adminAuth.signInWithEmailAndPassword(ADMIN_EMAIL,String(pin));return true}
+  catch(e){const er=fbErr(e);if(er.message==='暗証番号が違います')return false;throw er}
+}
+async function adminLogout(){try{await FBX.adminAuth.signOut()}catch(e){}}
+
+async function dbAdd(o){
+  const ws=o.week||S.ws,free=phase()==='free';
+  const status=(free||(o.fixed&&S.isAdmin))?'confirmed':'pending';
+  const r={uid:S.uid,band:(o.band||'').trim(),rep:(o.rep||'').trim(),kind:o.kind,day:o.day,s:o.s,e:o.e,
+    dur:status==='confirmed'?o.e-o.s:o.dur,status:status,createdAt:firebase.database.ServerValue.TIMESTAMP};
+  const id=wref(ws).child('reqs').push().key;
+  const up={};up['reqs/'+id]=r;
+  if(status==='confirmed'){
+    const keys=slotKeys(r);
+    if(ws===S.ws&&keys.some(k=>S.slots[k]))throw new Error('その時間にはすでに予約があります');
+    keys.forEach(k=>{up['slots/'+k]=id});
+  }
+  try{await wref(ws).update(up)}catch(e){throw fbErr(e,status==='confirmed'?'slot':'')}
+  return id;
+}
+async function dbUpdate(id,patch){
+  const cur=S.reqs.find(x=>x.id===id);
+  if(!cur)throw new Error('予約が見つかりません');
+  const nx=Object.assign({},cur,patch);
+  if(nx.status==='confirmed')nx.dur=nx.e-nx.s;
+  const before=cur.status==='confirmed'?slotKeys(cur):[],after=nx.status==='confirmed'?slotKeys(nx):[];
+  const up={};up['reqs/'+id]=clean(nx);
+  before.filter(k=>!after.includes(k)).forEach(k=>{up['slots/'+k]=null});
+  after.filter(k=>!before.includes(k)).forEach(k=>{up['slots/'+k]=id});
+  try{await wref(S.ws).update(up)}catch(e){throw fbErr(e,after.length?'slot':'')}
+  return true;
+}
+async function dbDelete(id){
+  const cur=S.reqs.find(x=>x.id===id);
+  if(!cur)return true;
+  const up={};up['reqs/'+id]=null;
+  if(cur.status==='confirmed')slotKeys(cur).forEach(k=>{up['slots/'+k]=null});
+  try{await wref(S.ws).update(up)}catch(e){throw fbErr(e)}
+  return true;
+}
+async function dbSaveCfg(ws,patch){
+  const c={phase:patch.phase||phase(),order:patch.order||order(),maxSlots:patch.maxSlots||maxSlots()};
+  try{await wref(ws).child('cfg').set(c)}catch(e){throw fbErr(e)}
+  return true;
+}
+async function dbConfirmAll(ws){
+  computePlan();
+  const up={};let ok=0,ng=0;
+  S.reqs.filter(r=>r.status==='pending').forEach(r=>{
+    const t=S.plan.place.get(r.id);
+    if(t==null){ng++;up['reqs/'+r.id+'/status']='rejected'}
+    else{
+      ok++;const d=durOf(r);
+      const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d});
+      up['reqs/'+r.id]=clean(nx);
+      slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});
+    }
+  });
+  up['cfg/phase']='free';
+  if(!S.cfg.phase){up['cfg']={phase:'free',order:order(),maxSlots:maxSlots()};delete up['cfg/phase']}
+  try{await wref(ws).update(up)}catch(e){throw fbErr(e,'slot')}
+  return {ok:ok,ng:ng};
+}
+
+/* ---------- 練習表を画像で保存（スプレッドシートの代わり） ---------- */
+const IMG_COLORS=['#1f4fb5','#a83232','#4f7a3a','#8a6d1d'];
+function exportImage(){
+  const cw=150,tw=80,rh=34,hh=70,W=tw*2+cw*7,Hh=hh+rh*SLOTS;
+  const cv=document.createElement('canvas');cv.width=W*2;cv.height=Hh*2;
+  const g=cv.getContext('2d');g.scale(2,2);
+  g.fillStyle='#000';g.fillRect(0,0,W,Hh);
+  g.font='bold 24px sans-serif';g.fillStyle='#fff';g.textBaseline='middle';g.textAlign='center';
+  g.fillText('練習表',tw/2+10,hh/2);
+  for(let d=0;d<7;d++){
+    const x=tw+d*cw;g.fillStyle='#1b3a8f';g.fillRect(x,0,cw-1,hh-1);
+    g.fillStyle='#fff';g.font='bold 18px sans-serif';g.fillText(DAYS[d]+'曜日',x+cw/2,22);
+    g.font='15px sans-serif';g.fillText(md(addDays(S.ws,d)),x+cw/2,48);
+  }
+  g.font='15px sans-serif';g.textAlign='right';
+  for(let i=0;i<SLOTS;i++){const y=hh+i*rh+rh/2;g.fillStyle='#fff';g.fillText(tm(i),tw-10,y);g.fillText(tm(i),W-10,y)}
+  g.strokeStyle='#222';
+  for(let i=0;i<=SLOTS;i++){g.beginPath();g.moveTo(tw,hh+i*rh);g.lineTo(tw+7*cw,hh+i*rh);g.stroke()}
+  colorMap();
+  S.reqs.filter(r=>r.status==='confirmed').forEach(r=>{
+    const v=S.colors.get(r.id);const x=tw+r.day*cw,y=hh+r.s*rh,hgt=(r.e-r.s)*rh;
+    g.fillStyle=v==='m'?'#333333':IMG_COLORS[v||0];g.fillRect(x+1,y+1,cw-3,hgt-2);
+    g.fillStyle='#fff';g.textAlign='center';g.font='bold 17px sans-serif';
+    let t=nm(r);while(g.measureText(t).width>cw-12&&t.length>1)t=t.slice(0,-1);
+    g.fillText(t,x+cw/2,y+hgt/2);
+  });
+  const a=document.createElement('a');a.download='練習表_'+S.ws+'.png';a.href=cv.toDataURL('image/png');
+  document.body.append(a);a.click();a.remove();
+  toast('練習表の画像を保存しました');
+}
+
+/* ---------- カレンダー用ファイル（.ics）をその場で作る ---------- */
+function icsEsc(v){return String(v||'').replace(/\\/g,'\\\\').replace(/[,;]/g,c=>'\\'+c).replace(/\r?\n/g,'\\n')}
+function icsUtc(ws,day,slot){
+  const p=ws.split('-').map(Number);
+  const t=new Date(Date.UTC(p[0],p[1]-1,p[2]+day,0,0)+slot*30*60000);   // 9:00(JST)=0:00(UTC)
+  return t.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+}
+function icsHref(list){
+  const now=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  const ev=list.map(r=>{const name=nm(r);return ['BEGIN:VEVENT','UID:'+r.id+'@kitami-keion','DTSTAMP:'+now,
+    'DTSTART:'+icsUtc(S.ws,r.day,r.s),'DTEND:'+icsUtc(S.ws,r.day,r.e),
+    'SUMMARY:'+icsEsc(isMeeting(r)?'部会':'部室練習：'+name),'LOCATION:'+icsEsc('部室'),
+    'DESCRIPTION:'+icsEsc((r.rep?'代表 '+r.rep+'\n':'')+'北見工大 軽音予約'),
+    'BEGIN:VALARM','TRIGGER:-PT60M','ACTION:DISPLAY','DESCRIPTION:'+icsEsc('1時間後に部室練習：'+name),'END:VALARM','END:VEVENT'].join('\r\n')});
+  const body=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//kitami-keion//bushitsu//JA','CALSCALE:GREGORIAN','METHOD:PUBLISH'].concat(ev,['END:VCALENDAR']).join('\r\n');
+  return 'data:text/calendar;charset=utf-8,'+encodeURIComponent(body);
+}
+
+/* ---------- 色：同じ日でとなり合う・重なる予約が別の色になるよう自動で割り当て ---------- */
+function colorMap(){
+  const m=new Map();
+  const items=live().slice().sort((a,b)=>a.day-b.day||a.s-b.s||a.e-b.e||String(a.id).localeCompare(String(b.id)));
+  let last=-1,lastDay=-1;
+  items.forEach(r=>{
+    if(isMeeting(r)){m.set(r.id,'m');return}
+    if(r.day!==lastDay){last=-1;lastDay=r.day}
+    const near=items.filter(o=>m.has(o.id)&&o.day===r.day&&o.s<=r.e&&r.s<=o.e).map(o=>m.get(o.id));
+    let c=null;
+    for(let k=1;k<=4;k++){const i=(last+k)%4;if(!near.includes(i)){c=i;break}}
+    if(c==null)c=(last+1)%4;
+    m.set(r.id,c);last=c;
+  });
+  S.colors=m;
+}
+function isMeeting(r){return r.band==='部会'}
+function cc(r){const v=S.colors&&S.colors.get(r.id);return v==='m'?'cm':'c'+(v||0)}
+
+/* ---------- layout of overlapping blocks ---------- */
+function lanes(items){
+  const sorted=items.slice().sort((a,b)=>a.s-b.s||a.e-b.e);
+  const out=[];let cluster=[],end=-1,ends=[];
+  const flush=()=>{cluster.forEach(c=>{c.n=ends.length});out.push.apply(out,cluster);cluster=[];ends=[];end=-1};
+  sorted.forEach(r=>{
+    if(cluster.length&&r.s>=end)flush();
+    let l=ends.findIndex(e=>e<=r.s);
+    if(l<0){l=ends.length;ends.push(0)}
+    ends[l]=r.e;end=Math.max(end,r.e);
+    cluster.push({r:r,lane:l,n:1});
+  });
+  flush();return out;
+}
+
+/* ---------- header, banner, tabs ---------- */
+function renderHead(){
+  $('weekLabel').textContent=md(S.ws)+'（月）〜 '+md(addDays(S.ws,6))+'（日）';
+}
+function renderBanner(){
+  const b=$('banner'),p=phase();
+  const ord=order().map(k=>KINDS[k]).join(' → ');
+  const msg=h('div',{class:'msg'});
+  if(S.fail){msg.append(h('b',{text:'読み込みエラー'}),' '+S.fail)}
+  else if(p==='closed'){
+    msg.append(h('span',{class:'phase',text:PHASES.closed}),'この週の募集はまだ始まっていません。土曜の部会で募集を開始します。');
+  }else if(p==='request'){
+    msg.append(h('span',{class:'phase request',text:PHASES.request}),'空いている枠をタップして希望を出します。部会で優先度順に確定します。');
+    msg.append(h('div',{class:'rank',text:'優先度：'+ord+'（同じ優先度は先に出した順）　1回の上限：'+durLabel(maxSlots())}));
+    if(!S.isAdmin)msg.append(h('div',{class:'rank',text:'みんなの希望が点線で見えます。時間帯が被っても、ずらして収まれば自動で調整。出す前に「入れそうか」が表示されます。'}));
+  }else{
+    msg.append(h('span',{class:'phase free',text:PHASES.free}),'空いている枠をタップすると、その場で予約が確定します（先着順）。1回の上限：'+durLabel(maxSlots())+'。');
+  }
+  b.replaceChildren(msg);
+  if(S.isAdmin&&p==='closed'&&!S.loading)b.append(h('button',{class:'btn primary',onclick:()=>saveCfg({phase:'request'}),text:'募集を開始する'}));
+}
+function renderTabs(){
+  const tabs=[['today','今日'],['grid','週間表'],['list',S.isAdmin?'希望一覧':'自分の予約']];
+  if(S.isAdmin)tabs.push(['admin','管理']);
+  if(!tabs.some(t=>t[0]===S.tab))S.tab='grid';
+  $('tabs').replaceChildren.apply($('tabs'),tabs.map(t=>h('button',{role:'tab','aria-selected':String(S.tab===t[0]),onclick:()=>{const was=S.tab;S.tab=t[0];S.armed=false;if(t[0]==='today'||t[0]==='grid')lsSet('kitami-tab',t[0]);if(t[0]==='today'&&was!=='today')goDay(S.dayOff||0);else render()},text:t[1]})));
+}
+
+/* ---------- weekly grid ---------- */
+function block(r,lane,n){
+  const st='top:'+(r.s*H+1)+'px;height:'+((r.e-r.s)*H-2)+'px;left:calc('+(lane/n*100)+'% + 2px);width:calc('+(100/n)+'% - 4px)';
+  const cls='blk '+cc(r)+' '+r.status+(mine(r)?' mine':'')+(conflicts(r)?' clash':'')+(r._tmp?' saving':'');
+  const flex=r.status==='pending'&&durOf(r)<r.e-r.s;
+  const t0=S.plan.place.get(r.id);
+  let kids;
+  if(flex&&t0!=null){
+    /* 時間帯（点線の枠）の中に、仮の配置を帯で重ねる */
+    const d=durOf(r);
+    kids=[h('div',{class:'plan',style:'top:'+((t0-r.s)*H)+'px;height:'+(d*H-1)+'px'},[
+      h('span',{class:'n',text:nm(r)}),
+      d>=2?h('span',{class:'t',text:'仮 '+tm(t0)+'–'+tm(t0+d)}):null
+    ])];
+  }else{
+    kids=[h('span',{class:'n',text:nm(r)})];
+    if(r.e-r.s>=2)kids.push(h('span',{class:'t',text:(r.status==='pending'?'希望 ':'')+range(r)+(flex?'（'+durLabel(durOf(r))+'）':'')}));
+    if(r.e-r.s>=3&&r.band&&r.rep)kids.push(h('span',{class:'t',text:r.rep}));
+  }
+  const tg=r.status==='pending'?(conflicts(r)?['bad','被り']:clashes(r).length?['ok','調整']:null):null;
+  if(tg)kids.push(h('span',{class:'tag '+tg[0],text:tg[1]}));
+  return h('button',{class:cls,style:st,'aria-label':nm(r)+' '+(r.rep||'')+' '+DAYS[r.day]+'曜 '+range(r),onclick:e=>{e.stopPropagation();openDetail(r.id)}},kids);
+}
+function gridView(){
+  const today=isoOf(new Date());
+  const head=h('div',{class:'gh'},[h('div',{class:'corner'})]);
+  const body=h('div',{class:'gb'});
+  const tcol=h('div',{class:'tcol'});
+  for(let i=0;i<SLOTS;i++)tcol.append(h('div',{class:i%2?'':'hr',text:tm(i)}));
+  body.append(tcol);
+  const add=canAdd();
+  for(let d=0;d<7;d++){
+    const iso=addDays(S.ws,d),isT=iso===today;
+    head.append(h('div',{class:'dh'+(isT?' today':'')+(d===5?' sat':'')},[h('b',{text:DAYS[d]+'曜日'}),h('span',{text:md(iso)})]));
+    const col=h('div',{class:'day'+(isT?' today':'')+(add?'':' ro')});
+    const dayItems=visible().filter(r=>r.day===d);
+    lanes(dayItems).forEach(x=>col.append(block(x.r,x.lane,x.n)));
+    const zn=zonesFor(d,dayItems);
+    const zone=(z,ok)=>h('div',{class:'clashzone'+(ok?' ok':''),style:'top:'+(z[0]*H)+'px;height:'+((z[1]-z[0])*H)+'px','aria-hidden':'true'});
+    zn.ok.forEach(z=>col.append(zone(z,true)));
+    zn.bad.forEach(z=>col.append(zone(z,false)));
+    if(add)col.addEventListener('click',e=>{
+      const y=e.clientY-col.getBoundingClientRect().top;
+      openAdd(d,Math.max(0,Math.min(SLOTS-1,Math.floor(y/H))));
+    });
+    body.append(col);
+  }
+  const legend=h('div',{class:'legend'},[h('span',null,['色は、となり合う予約が見分けやすいよう自動で付きます'])]);
+  if(phase()==='request')legend.append(h('span',null,[h('i',{class:'pend'}),'点線＝希望の時間帯（確定前・枠は押さえません）']),h('span',null,[h('i',{style:'background:var(--muted)'}),'色の帯＝調整後の仮の配置']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--bad) 0 3px,transparent 3px 6px);border:1px solid var(--bad)'}),'赤の斜線＝被っていて入りきらない']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--drum) 0 3px,transparent 3px 6px);border:1px solid var(--drum)'}),'黄の斜線＝時間帯は被るが調整で収まる']));
+  legend.append(h('span',null,['黒い枠＝自分の分']));
+  const wrap=h('div',{class:'grid-wrap',id:'gridWrap'},[head,body]);
+  let tog=null;
+  if(phase()==='request'&&!S.isAdmin){
+    const cb=h('input',{type:'checkbox',id:'showAll',checked:S.showAll||null,onchange:e=>{S.showAll=e.target.checked;lsSet('kitami-showall',S.showAll?'1':'0');render()}});
+    tog=h('label',{class:'row',style:'gap:6px;font-weight:700;font-size:13.5px'},[cb,'みんなの希望も表示する']);
+  }
+  const out=h('div',{style:'display:flex;flex-direction:column;gap:10px'},[statusStrip(),tog,legend,wrap]);
+  if(!S.loading&&!visible().length)out.append(h('div',{class:'empty-hint',text:add?'まだ予約はありません。空いている時間をタップして追加できます。':'まだ予約はありません。'}));
+  return out;
+}
+
+/* ---------- list ---------- */
+function actions(r,done){
+  const a=[];
+  const after=()=>{if(done)done()};
+  if(S.isAdmin){
+    if(r.status==='pending'){
+      a.push(h('button',{class:'btn sm primary',onclick:async()=>{
+        const d=durOf(r),t=S.plan.place.get(r.id),s=t!=null?t:r.s,e=s+d;
+        if(S.reqs.some(o=>o.status==='confirmed'&&o.id!==r.id&&overlap(o,{day:r.day,s:s,e:e}))){toast('確定済みの予約と重なっています');return}
+        await patchReq(r.id,{status:'confirmed',s:s,e:e,ws:r.s,we:r.e});after();
+      },text:'確定'}));
+      a.push(h('button',{class:'btn sm',onclick:async()=>{await patchReq(r.id,{status:'rejected'});after()},text:'見送り'}));
+    }else{
+      a.push(h('button',{class:'btn sm',onclick:async()=>{await patchReq(r.id,r.ws!=null?{status:'pending',s:r.ws,e:r.we}:{status:'pending'});after()},text:r.status==='confirmed'?'確定を取り消す':'希望に戻す'}));
+    }
+  }
+  if(S.isAdmin||(mine(r)&&r.status==='pending')){
+    a.push(h('button',{class:'btn sm',onclick:()=>{closeSheet();openAdd(r.day,r.s,r)},text:'内容を変更'}));
+  }
+  if(S.isAdmin||mine(r)){
+    const armed=S.delArm===r.id;
+    a.push(h('button',{class:'btn sm danger',onclick:async()=>{
+      if(!armed){S.delArm=r.id;render();return}
+      S.delArm=null;await delReq(r.id);after();
+    },text:armed?'本当に削除':'削除'}));
+  }
+  return a;
+}
+function kindSelect(r){
+  const s=h('select',{class:'sel-sm','aria-label':'優先度の種別'},KEYS.map(k=>h('option',{value:k,text:KINDS[k]})));
+  s.value=r.kind;
+  s.addEventListener('change',()=>patchReq(r.id,{kind:s.value}));
+  return s;
+}
+const ST={pending:'希望',confirmed:'確定',rejected:'見送り'};
+
+/* ---------- overlaps ---------- */
+function mergeIv(iv){
+  iv.sort((x,y)=>x[0]-y[0]);
+  const out=[];
+  iv.forEach(z=>{
+    const l=out[out.length-1];
+    if(l&&z[0]<=l[1])l[1]=Math.max(l[1],z[1]);else out.push(z.slice());
+  });
+  return out;
+}
+/* 赤い斜線：管理者は全体の被り、それ以外は「自分の希望」が他と被っている部分だけ */
+function zonesFor(d,items){
+  const okIv=[];
+  items.filter(r=>r.status==='pending'&&!conflicts(r)).forEach(r=>clashes(r).forEach(c=>okIv.push([c.s,c.e])));
+  return {bad:mergeIv(items.filter(conflicts).map(r=>[r.s,r.e])),ok:mergeIv(okIv)};
+}
+function whoText(r){return r.band&&r.rep?r.band+'　'+r.rep:nm(r)}
+
+/* 申請の状況まとめ：被って入りきらない希望を、押せる一覧で上に出す */
+function statusStrip(){
+  if(phase()!=='request')return null;
+  const pend=(S.isAdmin?live():live().filter(mine)).filter(r=>r.status==='pending');
+  if(!pend.length)return null;
+  const bad=pend.filter(conflicts),ok=pend.filter(r=>!conflicts(r)&&clashes(r).length);
+  const strip=h('div',{class:'strip'},[h('div',{class:'sum'},[
+    h('span',{text:(S.isAdmin?'出ている希望 ':'あなたの希望 ')+pend.length+'件'}),
+    h('span',{class:'n-ok',text:'時間帯は被るが調整で収まる '+ok.length+'件'}),
+    h('span',{class:'n-bad',text:'被っていて入りきらない '+bad.length+'件'})
+  ])]);
+  bad.forEach(r=>strip.append(h('button',{class:'btn jump',onclick:()=>openDetail(r.id)},[
+    h('span',{class:'tag bad',style:'position:static',text:'被り'}),
+    h('span',{text:whoText(r)+'　'+DAYS[r.day]+'曜 '+range(r)+'（'+durLabel(durOf(r))+'）'})
+  ])));
+  if(bad.length)strip.append(h('div',{class:'rank',text:S.isAdmin?'押すと、被っている相手と時間が見られます。':'押すと、被っている相手と時間が見られます。相手と相談して、時間帯を広げるか取り下げてください。'}));
+  return strip;
+}
+
+/* 自分の時間帯と相手の時間帯を、同じ横軸に並べて見せる */
+function timeline(r,cs,bad){
+  const pct=v=>(v/SLOTS*100)+'%';
+  const wrap=h('div',{class:'tl'});
+  const ax=h('div',{class:'ax'});
+  [0,6,12,18,24].forEach(i=>ax.append(h('span',{style:'left:'+pct(i),text:tm(i).replace(':00','時')})));
+  wrap.append(ax);
+  const ov=c=>h('div',{class:'ov'+(bad?'':' ok'),style:'left:'+pct(c.s)+';width:'+pct(c.e-c.s)});
+  const mineRow=h('div',{class:'tr'},[h('div',{class:'bar '+cc(r),style:'left:'+pct(r.s)+';width:'+pct(r.e-r.s)})]);
+  const t0=S.plan.place.get(r.id);
+  if(t0!=null)mineRow.append(h('div',{class:'pl '+cc(r),style:'left:'+pct(t0)+';width:'+pct(durOf(r))}));
+  cs.forEach(c=>mineRow.append(ov(c)));
+  wrap.append(h('div',{class:'lbl',text:'この希望の時間帯 '+range(r)+(t0!=null?'（色の帯＝仮の配置）':'')}),mineRow);
+  cs.forEach(c=>{
+    const o=c.o,same=o.uid&&o.uid===r.uid;
+    wrap.append(h('div',{class:'lbl',text:(same?'同じ人の別の希望：':'')+whoText(o)+'　'+range(o)}),
+      h('div',{class:'tr'},[h('div',{class:'bar '+cc(o)+(o.status==='confirmed'?' solid':''),style:'left:'+pct(o.s)+';width:'+pct(o.e-o.s)}),ov(c)]));
+  });
+  return wrap;
+}
+function clashBox(r){
+  if(r.status!=='pending')return null;
+  const cs=clashes(r);
+  if(!cs.length)return null;
+  const bad=conflicts(r),t0=S.plan.place.get(r.id);
+  const box=h('div',{class:'clashbox'+(bad?'':' okbox')},[h('div',{class:'ttl',text:bad?'時間帯が被っていて、このままだと入りきりません（'+cs.length+'件）':'時間帯は被っていますが、調整すれば収まります（'+cs.length+'件）'})]);
+  if(!bad&&t0!=null)box.append(h('div',{class:'sub',text:'仮の配置：'+tm(t0)+'–'+tm(t0+durOf(r))+'（部会で確定します）'}));
+  box.append(timeline(r,cs,bad));
+  cs.forEach(c=>box.append(h('div',{class:'cl '+cc(c.o)},[
+    h('div',{class:'dot'}),
+    h('div',{style:'min-width:0'},[
+      h('div',{class:'who',text:(c.o.uid&&c.o.uid===r.uid?'【同じ人の別の希望】 ':'')+whoText(c.o)}),
+      h('div',{class:'sub',text:DAYS[c.o.day]+'曜 '+(c.o.status==='pending'?'希望の時間帯 ':'')+range(c.o)+(c.o.status==='pending'?'（'+durLabel(durOf(c.o))+'）':'')+'・'+KINDS[c.o.kind]+'・'+ST[c.o.status]}),
+      h('div',{class:'sub',style:bad?'color:var(--bad)':'',text:tm(c.s)+'–'+tm(c.e)+' が重なっています'})
+    ])
+  ])));
+  box.append(h('div',{class:'hint',text:!bad?'このまま部会で確定できます。時間帯を広げるとさらに調整しやすくなります。':S.isAdmin?'自動確定では、優先度の高い方が先に入り、入りきらない希望は見送りになります。':'本人同士で相談して、時間帯を広げるか、練習時間を短くするか、取り下げてください。'}));
+  return box;
+}
+
+/* ---------- list ---------- */
+function listView(){
+  const only=S.isAdmin?!!S.onlyMine:true;
+  const items=S.reqs.filter(r=>!only||mine(r));
+  const pend=items.filter(r=>r.status==='pending').sort((a,b)=>(Number(conflicts(b))-Number(conflicts(a)))||byDecision(a,b));
+  const conf=items.filter(r=>r.status==='confirmed').sort((a,b)=>a.day-b.day||a.s-b.s);
+  const rej=items.filter(r=>r.status==='rejected').sort(byDecision);
+  const rows=pend.concat(conf,rej);
+  const bar=h('div',{class:'row'});
+  if(S.isAdmin){
+    bar.append(h('label',{class:'row',style:'gap:6px'},[h('input',{type:'checkbox',id:'onlyMine',checked:S.onlyMine||null,onchange:e=>{S.onlyMine=e.target.checked;render()}}),'自分の分だけ表示']));
+    bar.append(h('span',{class:'rank',text:'希望は確定する順（'+order().map(k=>KINDS[k]).join('→')+'）に並びます'}));
+  }else{
+    bar.append(h('span',{class:'rank',text:'あなたが出した希望と予約です。'}));
+  }
+  const list=h('div',{class:'list'});
+  if(!rows.length)list.append(h('div',{class:'empty-hint',text:only&&S.isAdmin?'あなたの予約・希望はまだありません。':S.isAdmin?'この週の予約・希望はまだありません。':'まだ予約・希望はありません。週間表の空いている時間をタップして追加できます。'}));
+  rows.forEach(r=>{
+    const acts=actions(r);
+    if(S.isAdmin)acts.unshift(kindSelect(r));
+    const cb=r.status==='rejected'?null:clashBox(r);
+    list.append(h('div',{class:'li '+cc(r)+' '+r.status},[
+      h('div',{class:'dot'}),
+      h('div',{style:'min-width:0'},[
+        h('div',{class:'nm',text:nm(r)}),
+        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+durOf(r)):'')})
+      ]),
+      h('div',{class:'acts'},[h('span',{class:'chip '+r.status,text:ST[r.status]}),
+        r.status==='pending'&&conflicts(r)?h('span',{class:'chip rejected',text:'被り'}):(r.status==='pending'&&clashes(r).length?h('span',{class:'chip pending',text:'調整OK'}):null)]),
+      r.status==='rejected'&&mine(r)?h('div',{class:'rank',style:'grid-column:1/-1',text:'他の希望と重なったため見送りになりました。空いている時間であらためて申し込めます。'}):null,
+      cb?h('div',{style:'grid-column:1/-1;display:flex;flex-direction:column'},[cb]):null,
+      r.status==='confirmed'&&(S.isAdmin?mine(r):true)?h('div',{style:'grid-column:1/-1'},[calButtons(r)]):null,
+      acts.length?h('div',{style:'grid-column:1/-1',class:'acts'},acts):null
+    ]));
+  });
+  return h('div',{style:'display:flex;flex-direction:column;gap:10px'},[bar,calBulk(),list]);
+}
+
+/* ---------- カレンダーに追加 ---------- */
+function slotHM(i){const m=540+i*30;return pad(Math.floor(m/60))+pad(m%60)+'00'}
+function gcalUrl(r){
+  const d=addDays(S.ws,r.day).replace(/-/g,'');
+  const name=nm(r);
+  const q='action=TEMPLATE'
+    +'&text='+encodeURIComponent('部室練習：'+name)
+    +'&dates='+d+'T'+slotHM(r.s)+'/'+d+'T'+slotHM(r.e)
+    +'&ctz=Asia%2FTokyo'
+    +'&location='+encodeURIComponent('部室')
+    +'&details='+encodeURIComponent((r.rep?'代表 '+r.rep+'\n':'')+'北見工大 軽音予約');
+  return 'https://calendar.google.com/calendar/render?'+q;
+}
+function calButtons(r){
+  if(r.status!=='confirmed')return null;
+  const kids=[h('a',{class:'btn sm cal',href:gcalUrl(r),target:'_blank',rel:'noopener',text:'Googleカレンダーに追加'})];
+  kids.push(h('a',{class:'btn sm cal',href:icsHref([r]),download:'bushitsu.ics',text:'iPhone・その他のカレンダー'}));
+  return h('div',{class:'row calrow'},kids);
+}
+function calBulk(){
+  const n=live().filter(r=>mine(r)&&r.status==='confirmed').length;
+  if(!n)return null;
+  return h('div',{class:'card',style:'padding:12px 14px;gap:8px'},[
+    h('div',{style:'font-weight:700',text:'今週の自分の予約（'+n+'件）をまとめてカレンダーに入れる'}),
+    h('div',{class:'row'},[h('a',{class:'btn sm cal primary',href:icsHref(live().filter(r=>mine(r)&&r.status==='confirmed')),download:'bushitsu.ics',text:'まとめて追加（iPhone・その他）'})]),
+    h('p',{text:'練習の1時間前に通知が来るように入ります。Googleカレンダーは、下の各予約のボタンから1件ずつ追加できます。'})
+  ]);
+}
+
+/* ---------- 今日画面 ---------- */
+function focusDate(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+(S.dayOff||0));return d}
+function goDay(off){
+  S.dayOff=off;
+  const ws=mondayOf(focusDate());
+  if(ws!==S.ws){S.ws=ws;load()}else render();
+}
+function nowSlot(){const n=new Date();return (n.getHours()-9)*2+n.getMinutes()/30}
+function todayView(){
+  const fd=focusDate(),iso=isoOf(fd),d=(fd.getDay()+6)%7,off=S.dayOff||0;
+  const label=(off?'明日':'今日')+' '+md(iso)+'（'+DAYS[d]+'）';
+  const seg=h('div',{class:'seg'},[0,1].map(o=>{const x=new Date();x.setDate(x.getDate()+o);
+    return h('button',{'aria-pressed':String(off===o),onclick:()=>goDay(o),text:(o?'明日':'今日')+' '+(x.getMonth()+1)+'/'+x.getDate()})}));
+  const out=h('div',{class:'today'},[seg]);
+  if(S.loading||mondayOf(fd)!==S.ws){out.append(h('div',{class:'empty-hint',text:'読み込み中…'}));return out}
+  const items=live().filter(r=>r.day===d&&r.status==='confirmed').sort((a,b)=>a.s-b.s);
+  const pendN=live().filter(r=>r.day===d&&r.status==='pending').length;
+  const now=off===0?nowSlot():-99;
+  const cur=items.find(r=>r.s<=now&&now<r.e);
+  const nxt=items.find(r=>r.s>now);
+
+  /* いまの状況（今日だけ） */
+  if(off===0){
+    let big,sub;
+    if(now<0){big='まだ部室の時間前です';sub=nxt?'最初は '+tm(nxt.s)+'〜 '+nm(nxt):'今日はまだ予約がありません'}
+    else if(now>=SLOTS){big='今日の部室の時間は終わりました';sub=''}
+    else if(cur&&isMeeting(cur)){big='いま：部会中';sub=range(cur)+(nxt?'　→ つぎ '+tm(nxt.s)+'〜 '+nm(nxt):'　→ そのあとは空いています')}
+    else if(cur){big='いま：'+nm(cur)+' が使用中';sub=range(cur)+(nxt?'　→ つぎ '+tm(nxt.s)+'〜 '+nm(nxt):'　→ そのあとは空いています')}
+    else{big='いま：空いています';sub=nxt?tm(nxt.s)+' まで空き　→ つぎ '+nm(nxt):'このあとはずっと空いています'}
+    const card=h('div',{class:'nowcard'+(cur?' busy '+cc(cur):' free')},[h('div',{class:'nowbig',text:big}),sub?h('div',{class:'nowsub',text:sub}):null]);
+    out.append(card);
+  }
+  out.append(h('h2',{class:'dayh',text:label}));
+  if(phase()==='request'&&pendN)out.append(h('div',{class:'rank',text:'この週は希望募集中です。部会で確定すると、ここに表示されます（希望 '+pendN+'件）。'}));
+
+  /* 時間順のリスト（予約と空き） */
+  const list=h('div',{class:'tlist'});
+  const canBook=canAdd()&&phase()==='free';
+  let t=0;
+  const gap=(a,b)=>{
+    if(b<=a)return;
+    const past=off===0&&b<=now;
+    const row=h('div',{class:'ti free'+(past?' past':'')},[
+      h('div',{class:'tt',text:tm(a)+'–'+tm(b)}),
+      h('div',{class:'tb'},[h('span',{class:'freel',text:'空き（'+durLabel(b-a)+'）'})])
+    ]);
+    if(canBook&&!past){
+      const st=off===0?Math.max(a,Math.ceil(now)):a;
+      if(st<b)row.lastChild.append(h('button',{class:'btn sm',onclick:()=>openAdd(d,st),text:'ここを予約'}));
+    }
+    list.append(row);
+  };
+  items.forEach(r=>{
+    gap(t,r.s);
+    const isNow=r===cur,isNext=r===nxt,past=off===0&&r.e<=now;
+    const chip=isNow?h('span',{class:'chip confirmed',text:isMeeting(r)?'部会中':'いま使用中'}):isNext&&off===0?h('span',{class:'chip pending',text:'つぎ'}):past?h('span',{class:'chip',text:'終了'}):null;
+    list.append(h('button',{class:'ti bk '+cc(r)+(past?' past':'')+(isNow?' now':'')+(mine(r)?' mine':''),onclick:()=>openDetail(r.id)},[
+      h('div',{class:'tt',text:range(r)}),
+      h('div',{class:'tb'},[h('div',{class:'tn'},[h('span',{text:nm(r)}),chip]),h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+durLabel(r.e-r.s)})])
+    ]));
+    t=Math.max(t,r.e);
+  });
+  gap(t,SLOTS);
+  if(!items.length&&!(phase()==='request'&&pendN))list.prepend(h('div',{class:'empty-hint',text:'この日の予約はまだありません。'}));
+  out.append(list);
+  return out;
+}
+
+/* ---------- アプリとして追加（ホーム画面）の案内 ---------- */
+const UA=navigator.userAgent||'';
+const IS_IOS=/iPhone|iPad|iPod/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1);
+const IS_LINE=/\bLine\//i.test(UA);
+function isStandalone(){try{return window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}}
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;renderInstall()});
+window.addEventListener('appinstalled',()=>{deferredInstall=null;lsSet('kitami-installed','1');renderInstall();toast('ホーム画面に追加しました')});
+function renderInstall(){
+  const box=$('installBox');if(!box)return;
+  box.replaceChildren();
+  if(isStandalone()||lsGet('kitami-install-hide')==='1')return;
+  const hide=h('button',{class:'btn sm',onclick:()=>{lsSet('kitami-install-hide','1');renderInstall()},text:'閉じる'});
+  let msg,btn=null;
+  if(IS_LINE){
+    msg='LINEの中で開いています。右下（または右上）の︙から「ブラウザで開く」にすると、ホーム画面に追加できて、次から一発で開けます。';
+  }else if(deferredInstall){
+    msg='ホーム画面に追加すると、アプリみたいにアイコンから一発で開けます。';
+    btn=h('button',{class:'btn primary',onclick:async()=>{
+      try{deferredInstall.prompt();const r=await deferredInstall.userChoice;if(r&&r.outcome==='accepted')lsSet('kitami-install-hide','1')}catch(e){}
+      deferredInstall=null;renderInstall();
+    },text:'アプリとして追加'});
+  }else if(IS_IOS){
+    msg='ホーム画面に追加すると、アプリみたいにアイコンから一発で開けます。';
+    btn=h('button',{class:'btn primary',onclick:openIosGuide,text:'やり方を見る（2ステップ）'});
+  }else return;
+  box.append(h('div',{class:'install'},[h('div',{class:'imsg',text:msg}),h('div',{class:'row'},[btn,hide])]));
+}
+function openIosGuide(){
+  const share=h('span',{class:'shareic','aria-hidden':'true'});
+  layer(h('div',{class:'sheet',role:'dialog','aria-modal':'true','aria-label':'ホーム画面に追加'},[
+    h('h3',{text:'ホーム画面に追加'}),
+    h('div',{class:'gstep'},[h('b',{text:'1'}),h('div',null,['画面の下（iPadは右上）にある ',share,' 共有ボタンを押す'])]),
+    h('div',{class:'gstep'},[h('b',{text:'2'}),h('div',null,['下にスクロールして「ホーム画面に追加」→ 右上の「追加」'])]),
+    h('p',{class:'rank',text:'Safari以外（Chromeなど）で開いている場合は、Safariで開き直してください。'}),
+    h('div',{class:'row',style:'justify-content:flex-end'},[h('button',{class:'btn primary',onclick:closeSheet,text:'わかった'})])
+  ]));
+}
+
+/* ---------- admin ---------- */
+async function autoConfirm(){
+  toast('確定しています…');
+  try{
+    const r=await mutate('confirmAll',[S.ws,S.pin]);
+    toast('確定 '+r.ok+'件'+(r.ng?'・入りきらず見送り '+r.ng+'件':'')+'。自由予約に切り替えました');
+  }catch(e){}
+}
+/* 部会（毎週ではない土曜 12:30〜13:30）をワンタップで入れる */
+function meetingCard(){
+  const sat=addDays(S.ws,5),lb=md(sat)+'（土）12:30〜13:30';
+  const ex=live().find(r=>r.day===5&&isMeeting(r)&&r.status==='confirmed');
+  const kids=[h('h2',{text:'部会'})];
+  if(ex){
+    kids.push(h('p',{text:md(sat)+'（土）'+range(ex)+' に部会が入っています。'}));
+    const armed=S.meetArm===ex.id;
+    kids.push(h('div',{class:'row'},[h('button',{class:'btn danger',onclick:async()=>{
+      if(!armed){S.meetArm=ex.id;render();return}
+      S.meetArm=null;try{await mutate('deleteReq',[ex.id,S.uid,S.pin],'部会を取り消しました')}catch(e){}
+    },text:armed?'もう一度押すと取り消します':'この週の部会を取り消す'}),
+      armed?h('button',{class:'btn sm',onclick:()=>{S.meetArm=null;render()},text:'やめる'}):null]));
+  }else{
+    kids.push(h('div',{class:'row'},[h('button',{class:'btn primary',onclick:async()=>{
+      try{await mutate('addReq',[{week:S.ws,band:'部会',rep:'運営',kind:'other',day:5,s:7,e:9,fixed:true},S.uid,S.pin],'部会を入れました')}catch(e){}
+    },text:lb+' に部会を入れる'})]));
+    kids.push(h('p',{text:'押すと確定済みの枠として入り、週間表・今日画面では「部会」「部会中」と表示されます。ほかの時間に入れたいときは、週間表で空いている時間をタップして、名前を「部会」にしてください。'}));
+  }
+  return h('div',{class:'card'},kids);
+}
+function adminView(){
+  const p=phase();
+  const seg=h('div',{class:'seg'},['closed','request','free'].map(k=>h('button',{'aria-pressed':String(p===k),onclick:()=>saveCfg({phase:k}),text:PHASES[k]})));
+  const c1=h('div',{class:'card'},[h('h2',{text:'この週の状態'}),seg,
+    h('p',{text:'準備中は予約できません。希望募集中は希望を集め、自由予約は空いている枠を先着で予約できます。'})]);
+  const ranks=[0,1,2].map(i=>{
+    const sel=h('select',{'aria-label':'第'+(i+1)+'優先'},KEYS.map(k=>h('option',{value:k,text:KINDS[k]})));
+    sel.value=order()[i];
+    sel.addEventListener('change',()=>{
+      const o=order().slice(),j=o.indexOf(sel.value);
+      o[j]=o[i];o[i]=sel.value;saveCfg({order:o});
+    });
+    return h('div',{class:'rankrow'},[h('span',{class:'no',text:'第'+(i+1)+'優先'}),sel]);
+  });
+  const c2=h('div',{class:'card'},[h('h2',{text:'優先度の順番'}),h('p',{text:'通常は バンド練習 → ドラム練習 → その他。イレギュラーな週はここで入れ替えられます。'})].concat(ranks));
+  const msel=h('select',{id:'maxSel','aria-label':'1回の上限'},[2,3,4,5,6,8,10,12].map(n=>h('option',{value:n,text:durLabel(n)})));
+  msel.value=maxSlots();
+  msel.addEventListener('change',()=>saveCfg({maxSlots:+msel.value}));
+  const cMax=h('div',{class:'card'},[h('h2',{text:'1回の練習時間の上限'}),msel,h('p',{text:'基本は2時間です。イレギュラーな週はここで変えられます。管理者が登録する固定枠（部会など）には適用されません。'})]);
+  const n=S.reqs.filter(r=>r.status==='pending').length;
+  const btn=h('button',{class:'btn primary',disabled:n===0||null,onclick:()=>{
+    if(!S.armed){S.armed=true;render();return}
+    S.armed=false;autoConfirm();
+  },text:S.armed?'もう一度押すと確定します':'優先度順に自動で確定（希望 '+n+'件）'});
+  const kids=[h('h2',{text:'部会で確定する'}),h('p',{text:'優先度の高い順に、同じ優先度は先に出した順に、希望の時間帯の中で重ならないよう自動で並べて確定します。時間帯の中に入りきらない希望は「見送り」になり、希望一覧から個別に直せます。確定後は自由予約に切り替わります。'}),btn];
+  if(S.armed)kids.push(h('button',{class:'btn sm',onclick:()=>{S.armed=false;render()},text:'やめる'}));
+  return h('div',{style:'display:flex;flex-direction:column;gap:12px'},[c1,meetingCard(),c2,cMax,h('div',{class:'card'},kids),
+    h('div',{class:'card'},[h('h2',{text:'練習表を画像で保存'}),
+      h('p',{text:'この週の確定した予約を、今までの練習表と同じ形の画像にします。LINEに貼るときに便利です。'}),
+      h('div',{class:'row'},[h('button',{class:'btn',onclick:()=>exportImage(),text:'練習表を画像で保存'})])]),
+    h('div',{class:'card'},[h('h2',{text:'この端末の管理者モード'}),
+      h('p',{text:'このスマホでは、終了するまで管理者のままです。共用のスマホやPCで使ったあとは、必ず終了してください。'}),
+      h('div',{class:'row'},[h('button',{class:'btn',onclick:async()=>{await adminLogout();S.isAdmin=false;S.tab='grid';render();toast('管理者モードを終了しました')},text:'管理者モードを終了'})])])
+  ]);
+}
+
+/* ---------- 運営メンバー：暗証番号で管理画面を開く ---------- */
+function renderFoot(){
+  const f=$('foot');f.replaceChildren();
+  if(S.isAdmin)f.append('管理者モードで表示中');
+  else f.append(h('button',{class:'btn sm',onclick:openPin,text:'運営メンバーの方はこちら'}));
+}
+function openPin(){
+  const pin=h('input',{type:'password',id:'aPin',inputmode:'numeric',autocomplete:'off',maxlength:'32'});
+  const err=h('div',{class:'err',role:'alert'});
+  const go=h('button',{class:'btn primary',text:'管理画面を開く',onclick:async()=>{
+    const v=pin.value.trim();err.textContent='';
+    if(!v){err.textContent='暗証番号を入力してください';pin.focus();return}
+    go.disabled=true;
+    try{
+      const ok=await api('checkPin',v);
+      if(!ok){err.textContent='暗証番号が違います';go.disabled=false;return}
+      S.isAdmin=true;closeSheet();S.tab='admin';render();toast('管理画面を開きました');
+    }catch(e){err.textContent=e.message||'確認できませんでした';go.disabled=false}
+  }});
+  pin.addEventListener('keydown',e=>{if(e.key==='Enter')go.click()});
+  layer(h('div',{class:'sheet',role:'dialog','aria-modal':'true','aria-label':'運営メンバー'},[
+    h('h3',{text:'運営メンバー'}),
+    h('p',{style:'margin:0;color:var(--muted);font-size:13px',text:'募集の切り替えや確定ができる管理画面は、暗証番号を知っている運営メンバーだけが開けます。'}),
+    h('div',{class:'field'},[h('label',{for:'aPin',text:'暗証番号'}),pin]),
+    err,
+    h('div',{class:'row',style:'justify-content:flex-end'},[h('button',{class:'btn',onclick:closeSheet,text:'キャンセル'}),go])
+  ]));
+  setTimeout(()=>pin.focus(),50);
+}
+/* ---------- sheets ---------- */
+function layer(content){
+  const sc=h('div',{class:'scrim',onclick:e=>{if(e.target===sc)closeSheet()}},[content]);
+  $('layer').replaceChildren(sc);
+}
+function closeSheet(){S.detailId=null;$('layer').replaceChildren()}
+function openDone(day,idx,booked){
+  layer(h('div',{class:'sheet',role:'dialog','aria-modal':'true'},[
+    h('h3',{text:booked?'予約しました':'希望を出しました'}),
+    h('p',{style:'margin:0;color:var(--muted)',text:'同じバンドで、ほかの日やほかの時間も、続けて何件でも申し込めます（名前は入力済みになります）。'}),
+    h('div',{class:'row',style:'justify-content:flex-end'},[
+      h('button',{class:'btn',onclick:closeSheet,text:'閉じる'}),
+      h('button',{class:'btn primary',onclick:()=>openAdd(day,Math.min(SLOTS-1,idx)),text:'続けて追加する'})
+    ])
+  ]));
+}
+function openAdd(day,idx,edit,draft){
+  S.detailId=null;
+  const max=maxSlots();
+  const free=phase()==='free';
+  const wasConfirmed=!!edit&&edit.status==='confirmed';
+  const heading=edit?'内容を変更':(free?'予約する':'希望を出す');
+  let f;
+  if(draft)f=Object.assign({},draft.f);
+  else if(edit)f={day:edit.day,s:edit.s,e:edit.e,dur:durOf(edit)};
+  else if(!free){
+    const e=Math.min(SLOTS,idx+8),dur=Math.min(4,max);
+    f={day:day,s:Math.max(0,Math.min(idx,e-dur)),e:e,dur:dur};
+  }else f={day:day,s:idx,e:Math.min(SLOTS,idx+Math.min(2,max)),dur:2};
+
+  const fixedIn=h('input',{type:'checkbox',id:'fFixed'});
+  const fixed=(S.isAdmin&&!free&&!edit)?h('label',{class:'row',style:'gap:6px;font-size:13px'},[fixedIn,'確定済みとして登録する（部会などの固定枠）']):null;
+  /* 希望募集中は「練習できる時間帯＋練習時間」、自由予約や固定枠はぴったりの時間 */
+  const isFlex=()=>!fixedIn.checked&&(edit?edit.status==='pending':!free);
+
+  const selDay=h('select',{id:'fDay'},[0,1,2,3,4,5,6].map(d=>h('option',{value:d,text:DAYS[d]+'曜 '+md(addDays(S.ws,d))})));
+  const selS=h('select',{id:'fS'},Array.from({length:SLOTS},(_,i)=>h('option',{value:i,text:tm(i)})));
+  const selE=h('select',{id:'fE'},Array.from({length:SLOTS},(_,i)=>h('option',{value:i+1,text:tm(i+1)})));
+  const selDur=h('select',{id:'fDur'},Array.from({length:Math.max(max,f.dur)},(_,i)=>h('option',{value:i+1,text:durLabel(i+1)})));
+  const lbS=h('label',{for:'fS'}),lbE=h('label',{for:'fE'});
+  const timeLb=h('span',{class:'lb'});
+  const durLb=h('label',{for:'fDur'});
+  const durField=h('div',{class:'field'},[durLb,selDur]);
+  const pv=h('div',{'aria-live':'polite'});
+  /* 出す前に、今出ている希望・予約と比べて「入れそうか」を表示 */
+  function renderPreview(fl){
+    pv.replaceChildren();
+    if(f.e<=f.s)return;
+    const others=live().filter(o=>(!edit||o.id!==edit.id)&&o.day===f.day);
+    const near=others.filter(o=>o.s<f.e&&f.s<o.e).sort((a,b)=>a.s-b.s);
+    const row=o=>h('div',{class:'sub',text:'・'+whoText(o)+'　'+(o.status==='pending'?'希望 '+range(o)+'（'+durLabel(durOf(o))+'）':'確定 '+range(o))});
+    let box;
+    if(!fl){
+      if(!near.length)box=h('div',{class:'clashbox okbox'},[h('div',{class:'ttl',text:'この時間は空いています'})]);
+      else{box=h('div',{class:'clashbox'},[h('div',{class:'ttl',text:'この時間にはもう予約があります'})]);near.forEach(o=>box.append(row(o)))}
+      pv.append(box);return;
+    }
+    const kv=kindEl?kindEl.value:'band';
+    const cand={id:'__new',kind:kv,day:f.day,s:f.s,e:f.e,dur:f.dur,status:'pending',createdAt:edit?(edit.createdAt||0):Date.now()};
+    const before=simulate(others);
+    const after=simulate(others.concat([cand]));
+    const t=after.place.get('__new');
+    const pushed=others.filter(o=>o.status==='pending'&&!before.bad.has(o.id)&&after.bad.has(o.id));
+    if(t!=null){
+      box=h('div',{class:'clashbox okbox'},[h('div',{class:'ttl',text:'今の希望だと入れそうです（仮 '+tm(t)+'–'+tm(t+f.dur)+'）'})]);
+      if(pushed.length){
+        box.append(h('div',{class:'sub',style:'color:var(--bad)',text:'※ 優先度の関係で、次の希望が入らなくなります：'}));
+        pushed.forEach(o=>box.append(row(o)));
+      }
+    }else{
+      box=h('div',{class:'clashbox'},[h('div',{class:'ttl',text:'今の希望だと入りきりません（被り）'}),
+        h('div',{class:'hint',text:'時間帯を広げるか、別の時間・日にすると入りやすくなります。'})]);
+    }
+    if(near.length){
+      box.append(h('div',{class:'sub',style:'margin-top:4px;font-weight:700',text:'この時間帯に出ている希望・予約（'+near.length+'件）'}));
+      near.forEach(o=>box.append(row(o)));
+    }else box.append(h('div',{class:'sub',text:'この時間帯には、まだ誰も希望を出していません。'}));
+    pv.append(box);
+  }
+  let kindEl=null;
+
+  function refresh(){
+    const fl=isFlex();
+    selDay.value=f.day;selS.value=f.s;selE.value=f.e;selDur.value=f.dur;
+    timeLb.textContent=fl?'練習できる時間帯':'時間';
+    lbS.textContent=fl?'から':'開始';lbE.textContent=fl?'まで':'終了';
+    durLb.textContent='練習時間（上限 '+durLabel(max)+'）';
+    durField.hidden=!fl;
+    renderPreview(fl);
+  }
+  selDay.onchange=()=>{f.day=+selDay.value;refresh()};
+  selS.onchange=()=>{
+    f.s=+selS.value;
+    const need=isFlex()?f.dur:1;
+    if(f.e-f.s<need)f.e=Math.min(SLOTS,f.s+Math.max(need,isFlex()?need:2));
+    if(f.e-f.s<need)f.s=Math.max(0,f.e-need);
+    refresh();
+  };
+  selE.onchange=()=>{f.e=+selE.value;refresh()};
+  selDur.onchange=()=>{
+    f.dur=+selDur.value;
+    if(f.e-f.s<f.dur){f.e=Math.min(SLOTS,f.s+f.dur);if(f.e-f.s<f.dur)f.s=Math.max(0,f.e-f.dur)}
+    refresh();
+  };
+  fixedIn.onchange=refresh;
+
+  const band=h('input',{type:'text',id:'fBand',maxlength:'20',placeholder:'例：エルレ',value:(draft?draft.band:edit?edit.band:lsGet('kitami-band'))||null,autocomplete:'off'});
+  const rep=h('input',{type:'text',id:'fRep',maxlength:'20',placeholder:'例：齊藤直弥',value:(draft?draft.rep:edit?edit.rep:lsGet('kitami-rep'))||null,autocomplete:'off'});
+  const kind=h('select',{id:'fKind'},KEYS.map(k=>h('option',{value:k,text:KINDS[k]})));
+  kind.value=draft?draft.kind:edit?edit.kind:(lsGet('kitami-kind')||'band');
+  kindEl=kind;kind.addEventListener('change',refresh);
+  const err=h('div',{class:'err',role:'alert',text:draft&&draft.err?draft.err:null});
+  if(draft&&draft.fixed)fixedIn.checked=true;
+  const go=h('button',{class:'btn primary',text:edit?'変更を保存':(free?'この時間で予約する':'希望を出す'),onclick:async()=>{
+    const bn=band.value.trim(),rn=rep.value.trim(),fl=isFlex(),fx=fixedIn.checked;
+    err.textContent='';
+    if(kind.value==='band'&&!bn){err.textContent='バンド名・予約名を入力してください';band.focus();return}
+    if(!rn){err.textContent='代表者名を入力してください';rep.focus();return}
+    if(f.e<=f.s){err.textContent='終了は開始より後にしてください';return}
+    let dur=f.e-f.s;
+    if(fl){
+      dur=f.dur;
+      if(dur>max){err.textContent='1回の上限は '+durLabel(max)+' です';return}
+      if(f.e-f.s<dur){err.textContent='時間帯が練習時間（'+durLabel(dur)+'）より短いです。時間帯を広げてください';return}
+    }else{
+      if(!fx&&dur>max){err.textContent='1回の上限は '+durLabel(max)+' です。時間を短くしてください';return}
+      const cand={day:f.day,s:f.s,e:f.e};
+      if(live().some(o=>o.status==='confirmed'&&(!edit||o.id!==edit.id)&&overlap(o,cand))){err.textContent='その時間にはすでに確定した予約があります。別の時間を選んでください';return}
+      if((free||wasConfirmed)&&live().some(o=>(!edit||o.id!==edit.id)&&overlap(o,cand))){err.textContent='その時間にはすでに予約があります。時間をずらしてください';return}
+    }
+    go.disabled=true;
+    const body={band:bn,rep:rn,kind:kind.value,day:f.day,s:f.s,e:f.e,dur:dur};
+    lsSet('kitami-band',bn);lsSet('kitami-rep',rn);lsSet('kitami-kind',kind.value);
+    /* 先に閉じて画面に反映。保存は裏で続ける */
+    closeSheet();
+    const fSnap=Object.assign({},f);
+    try{
+      let newId=null;
+      if(edit)await updReq(edit.id,body);
+      else newId=await addReq(Object.assign({},body,{fixed:fx}));
+      const id=edit?edit.id:newId;
+      computePlan();
+      const cur=S.reqs.find(x=>x.id===id);
+      if(cur&&cur.status==='pending'&&clashes(cur).length)openDetail(id);
+      else if(edit)toast('変更しました');
+      else openDone(f.day,f.e,free||fx);
+    }catch(e){
+      /* 保存できなかったときは、入力した内容のままフォームを開き直す */
+      openAdd(fSnap.day,fSnap.s,edit,{f:fSnap,band:bn,rep:rn,kind:kind.value,fixed:fx,err:(e.message||'保存できませんでした')+(e.retry?'（もう一度押してください）':'')});
+    }
+  }});
+  refresh();
+  layer(h('div',{class:'sheet',role:'dialog','aria-modal':'true','aria-label':heading},[
+    h('h3',{text:heading}),
+    h('div',{class:'field'},[h('label',{for:'fDay',text:'日付'}),selDay]),
+    h('div',{class:'field'},[timeLb,h('div',{class:'two'},[
+      h('div',{class:'field'},[lbS,selS]),
+      h('div',{class:'field'},[lbE,selE])
+    ])]),
+    durField,
+    pv,
+    h('div',{class:'two'},[
+      h('div',{class:'field'},[h('label',{for:'fBand',text:'バンド名・予約名'}),band]),
+      h('div',{class:'field'},[h('label',{for:'fRep',text:'代表者名'}),rep])
+    ]),
+    h('div',{class:'field'},[h('label',{for:'fKind',text:'種別（優先度に使います）'}),kind]),
+    fixed,
+    err,
+    h('div',{class:'row',style:'justify-content:flex-end'},[h('button',{class:'btn',onclick:closeSheet,text:'キャンセル'}),go])
+  ]));
+}
+function openDetail(id){
+  const r=S.reqs.find(x=>x.id===id);
+  if(!r){closeSheet();return}
+  if(r._tmp){toast('保存中です。少し待ってね');return}
+  S.detailId=id;
+  const kids=[
+    h('div',{class:'row',style:'justify-content:space-between;flex-wrap:nowrap'},[h('h3',{style:'overflow-wrap:anywhere',text:nm(r)}),h('span',{class:'chip '+r.status,text:ST[r.status]})]),
+    h('div',{class:'big',text:DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+range(r)}),
+    h('div',{class:'rank',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+KINDS[r.kind]+(r.status==='pending'?'　希望の時間帯・練習 '+durLabel(durOf(r)):'')})
+  ];
+  const t0=S.plan.place.get(r.id);
+  if(r.status==='pending'&&t0!=null)kids.push(h('div',{class:'rank',text:'仮の配置：'+tm(t0)+'–'+tm(t0+durOf(r))+'（部会で確定します）'}));
+  const cb=r.status==='rejected'?null:clashBox(r);
+  if(cb)kids.push(cb);
+  const cal=calButtons(r);if(cal)kids.push(cal);
+  if(S.isAdmin)kids.push(h('div',{class:'field'},[h('span',{class:'lb',text:'種別（優先度）を変更'}),kindSelect(r)]));
+  const more=(canAdd()&&mine(r))?[h('button',{class:'btn sm',onclick:()=>{closeSheet();openAdd(r.day,Math.min(SLOTS-1,r.e))},text:'続けて追加'})]:[];
+  kids.push(h('div',{class:'row'},actions(r,closeSheet).concat(more,[h('button',{class:'btn sm',onclick:closeSheet,text:'閉じる'})])));
+  layer(h('div',{class:'sheet',role:'dialog','aria-modal':'true'},kids));
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
+
+/* ---------- render & boot ---------- */
+function render(){
+  computePlan();colorMap();
+  renderHead();renderInstall();renderBanner();renderTabs();renderFoot();
+  const old=$('gridWrap'),sx=old?old.scrollLeft:0,sy=old?old.scrollTop:0;
+  $('view').replaceChildren(S.tab==='today'?todayView():S.tab==='grid'?gridView():S.tab==='list'?listView():adminView());
+  const nw=$('gridWrap');if(nw){nw.scrollLeft=sx;nw.scrollTop=sy}
+  if(S.detailId)openDetail(S.detailId);
+}
+function boot(){
+  S.ws=defaultWeek();
+  S.showAll=lsGet('kitami-showall')!=='0';
+  S.tab=lsGet('kitami-tab')==='today'?'today':'grid';
+  if(S.tab==='today')S.ws=mondayOf(new Date());
+  $('prev').onclick=()=>{S.ws=addDays(S.ws,-7);load()};
+  $('next').onclick=()=>{S.ws=addDays(S.ws,7);load()};
+  $('goNow').onclick=()=>{S.ws=mondayOf(new Date());load()};
+  render();
+  if(!fbInit()){S.loading=false;render();return}
+  S.appUrl=location.origin+location.pathname;
+  /* 運営アカウントでログイン中かどうか */
+  FBX.adminAuth.onAuthStateChanged(u=>{
+    S.isAdmin=!!u&&u.email===ADMIN_EMAIL;
+    if(!S.isAdmin&&S.tab==='admin')S.tab='grid';
+    render();
+  });
+  /* メンバーは自動で匿名ログイン（このスマホの「自分」を覚えるため。操作は不要） */
+  FBX.auth.onAuthStateChanged(async u=>{
+    if(!u){
+      try{await FBX.auth.signInAnonymously()}
+      catch(e){S.loading=false;S.fail='接続できませんでした。電波を確認して、ページを開き直してください';render()}
+      return;
+    }
+    S.uid=u.uid;
+    if(FBX.ref){FBX.ref.off();FBX.ref=null}
+    load();
+  });
+  /* 画面を閉じて1分たったら接続を切る（同時接続数を節約）。戻ったらすぐつなぎ直す */
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){FBX.offT=setTimeout(()=>{FBX.db.goOffline();FBX.adminDb.goOffline()},60000)}
+    else{clearTimeout(FBX.offT);FBX.db.goOnline();FBX.adminDb.goOnline()}
+  });
+}
+boot();
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+</script>
+</body>
+</html>

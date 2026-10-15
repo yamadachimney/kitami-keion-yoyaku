@@ -1,0 +1,16 @@
+{
+  "name": "北見工大 軽音予約",
+  "short_name": "軽音予約",
+  "description": "北見工大 軽音サークルの部室予約",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f3f6",
+  "theme_color": "#2448d6",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
