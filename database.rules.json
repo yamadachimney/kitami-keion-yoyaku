@@ -76,6 +76,92 @@
           ".validate": false
         }
       }
+    },
+    "liveIdx": {
+      ".read": true,
+      "$id": {
+        ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'",
+        ".validate": "newData.hasChildren(['name','date'])"
+      }
+    },
+    "tpls": {
+      ".read": true,
+      "$t": {
+        ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length <= 40"
+        }
+      }
+    },
+    "lives": {
+      ".read": true,
+      "$id": {
+        "cfg": {
+          ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'",
+          ".validate": "newData.hasChildren(['name','date','open'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          }
+        },
+        "items": {
+          ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'"
+        },
+        "run": {
+          ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'"
+        },
+        "checks": {
+          "$k": {
+            ".write": "auth != null && root.child('lives/'+$id+'/cfg').exists()",
+            "out": {
+              ".validate": "newData.isBoolean()"
+            },
+            "back": {
+              ".validate": "newData.isBoolean()"
+            },
+            "$o": {
+              ".validate": false
+            }
+          }
+        },
+        "entries": {
+          "$e": {
+            ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (root.child('lives/'+$id+'/cfg').exists() && root.child('lives/'+$id+'/cfg/locked').val() !== true && ((!data.exists() && newData.child('uid').val() === auth.uid) || (data.exists() && data.child('uid').val() === auth.uid && (!newData.exists() || newData.child('uid').val() === auth.uid)))))",
+            ".validate": "newData.hasChildren(['uid','band','createdAt'])",
+            "uid": {
+              ".validate": "newData.isString() && newData.val().length < 64"
+            },
+            "band": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40"
+            },
+            "note": {
+              ".validate": "newData.isString() && newData.val().length <= 400"
+            }
+          }
+        },
+        "$o": {
+          ".validate": false
+        },
+        ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'"
+      }
+    },
+    "supplies": {
+      ".read": true,
+      "$s": {
+        ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!data.exists() && newData.child('uid').val() === auth.uid && newData.child('status').val() === 'new') || (data.exists() && !newData.exists() && data.child('uid').val() === auth.uid && data.child('status').val() === 'new'))",
+        ".validate": "newData.hasChildren(['uid','item','status','createdAt'])",
+        "item": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 60"
+        },
+        "note": {
+          ".validate": "newData.isString() && newData.val().length <= 300"
+        },
+        "who": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "status": {
+          ".validate": "newData.val() === 'new' || newData.val() === 'seen' || newData.val() === 'ordered' || newData.val() === 'done'"
+        }
+      }
     }
   }
 }
