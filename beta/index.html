@@ -299,6 +299,11 @@ input.num{width:6em}
 .chip.sup-seen{background:var(--warn-bg);color:var(--drum)}
 .chip.sup-ordered{background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--accent)}
 .chip.sup-done{background:color-mix(in srgb,var(--ok) 15%,var(--surface));color:var(--ok)}
+.dayseg{flex-wrap:wrap;align-self:flex-start}
+.capbig{display:flex;flex-direction:column;gap:2px}.capbig b{font-size:22px;font-weight:900}
+.lvdate{display:flex;flex-direction:column;line-height:1.3}.lvdate small{font-weight:500;color:var(--muted);font-size:11.5px}
+.dayrow{gap:10px;border-color:var(--line)}.dayrow .dno{font-size:15px}
+.dayrow input[type=time]{min-width:0;flex:1 1 auto}
 @media (max-width:560px){.tr2{grid-template-columns:1.4em 6.8em minmax(0,1fr) auto}.li.sup{grid-template-columns:auto minmax(0,1fr)}}
 </style>
 </head>
@@ -1392,14 +1397,24 @@ function songsOf(e){return Array.isArray(e.songs)?e.songs.filter(Boolean):Object
 function membersOf(e){return Array.isArray(e.members)?e.members.filter(Boolean):Object.values(e.members||{})}
 function gearOf(e){return Array.isArray(e.gear)?e.gear.filter(Boolean):Object.values(e.gear||{})}
 function setSec(e){return songsOf(e).reduce((a,s)=>a+(+s.sec||0),0)}
-function showOrder(lv){
+/* 本番の日（複数日OK）。古い形（cfg.date/open）も読めるようにしておく */
+function daysOf(lv){
+  const c=cfgOf(lv);let d=c.days;
+  if(d&&!Array.isArray(d))d=Object.keys(d).sort((a,b)=>a-b).map(k=>d[k]);
+  if(d&&d.filter(Boolean).length)return d.filter(Boolean);
+  return [{date:c.date||todayIso(),anchor:'open',open:c.open!=null?+c.open:1080,gap:0}];
+}
+function dayOfEntry(lv,e){const n=daysOf(lv).length,d=+e.day||0;return d<0?0:d>=n?n-1:d}
+function dayName(lv,d){const ds=daysOf(lv);return ds.length>1?(d+1)+'日目 '+dateLabel(ds[d].date):dateLabel(ds[d].date)}
+function showOrder(lv,d){
   const es=entriesOf(lv),ids=new Set(es.map(x=>x.id));
   const ord=(cfgOf(lv).order||[]).filter((id,i,a)=>ids.has(id)&&a.indexOf(id)===i);
   const rest=es.filter(x=>ord.indexOf(x.id)<0).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)).map(x=>x.id);
-  return ord.concat(rest).map(id=>es.find(x=>x.id===id));
+  const all=ord.concat(rest).map(id=>es.find(x=>x.id===id));
+  return d==null?all:all.filter(e=>dayOfEntry(lv,e)===d);
 }
-function rehList(lv){
-  const so=showOrder(lv),c=cfgOf(lv),m=c.rehMode||'reverse';
+function rehList(lv,d){
+  const so=showOrder(lv,d),c=cfgOf(lv),m=c.rehMode||'reverse';
   if(m==='same')return so;
   if(m==='custom'){
     const ids=new Set(so.map(x=>x.id));
@@ -1411,32 +1426,55 @@ function rehList(lv){
 }
 function slotMin(lv,e){const c=cfgOf(lv);return c.slotMode==='fixed'?(+c.fixedMin||0):Math.ceil(setSec(e)/60)}
 function isOver(lv,e){const c=cfgOf(lv);return c.slotMode==='fixed'&&setSec(e)>(+c.fixedMin||0)*60}
-/* 予定（ps,pe）と、実際の開始を反映した見込み（s,e） */
-function schedule(lv){
-  const c=cfgOf(lv),run=(lv&&lv.run)||{},mid=midnightMs(c.date||todayIso());
+/* 1バンドの持ち時間の目安（何バンド入るかの計算用） */
+function avgMin(lv,d){
+  const c=cfgOf(lv);if(c.slotMode==='fixed')return +c.fixedMin||0;
+  let es=showOrder(lv,d).filter(e=>setSec(e)>0);if(!es.length)es=showOrder(lv).filter(e=>setSec(e)>0);
+  if(!es.length)return +c.estMin||20;
+  return Math.ceil(es.reduce((a,e)=>a+setSec(e),0)/es.length/60);
+}
+/* その日の開演・リハ開始。どちらか一方を決めると、もう一方はバンド数から自動で決まる */
+function dayTimes(lv,d){
+  const c=cfgOf(lv),dy=daysOf(lv)[d]||{},n=showOrder(lv,d).length,rm=+c.rehMin||0,gap=+dy.gap||0;
+  let open,reh;
+  if(dy.anchor==='reh'&&dy.rehStart!=null){reh=+dy.rehStart;open=reh+(rm?n*rm:0)+gap}
+  else{open=dy.open!=null?+dy.open:1080;reh=open-gap-n*rm}
+  if(!rm)reh=null;
+  return {open:open,reh:reh,date:dy.date||todayIso(),start:dy.start!=null&&dy.start!==''?+dy.start:null,end:dy.end!=null&&dy.end!==''?+dy.end:null,gap:gap,n:n,anchor:dy.anchor==='reh'?'reh':'open'};
+}
+/* 使える時間の中に何バンド入るか */
+function capacity(lv,d){
+  const t=dayTimes(lv,d);if(t.start==null||t.end==null||t.end<=t.start)return null;
+  const c=cfgOf(lv),rm=+c.rehMin||0,ch=+c.changeMin||0,avg=avgMin(lv,d);
+  const W=t.end-t.start,per=rm+avg+ch;
+  const N=per>0?Math.max(0,Math.floor((W-t.gap+ch)/per)):0;
+  return {W:W,avg:avg,N:N,n:t.n,rm:rm,ch:ch,gap:t.gap};
+}
+function runEnd(lv,d){const r=(lv&&lv.run)||{};if(r.end==null)return null;if(typeof r.end==='number')return d===0?r.end:null;return (Array.isArray(r.end)?r.end[d]:r.end[d])||null}
+/* 予定（ps,pe）と、実際の開始を反映した見込み（s,en） */
+function schedule(lv,d){
+  const c=cfgOf(lv),run=(lv&&lv.run)||{},t=dayTimes(lv,d),mid=midnightMs(t.date);
   const act=ms=>ms==null?null:(ms-mid)/60000;
   const rehMin=+c.rehMin||0,chg=+c.changeMin||0;
   const reh=[],show=[];
-  let p=c.rehStart==null?null:+c.rehStart,q=p;
-  if(p!=null)rehList(lv).forEach(e=>{
-    const a=act((run.reh||{})[e.id]);
-    const s=a!=null?a:q;
+  let p=t.reh,q=p;
+  if(p!=null)rehList(lv,d).forEach(e=>{
+    const a=act((run.reh||{})[e.id]);const s=a!=null?a:q;
     reh.push({e:e,ps:p,pe:p+rehMin,s:s,en:s+rehMin,a:a!=null});
     p+=rehMin;q=s+rehMin;
   });
-  p=c.open==null?null:+c.open;q=p;
-  if(p!=null)showOrder(lv).forEach((e,i)=>{
-    const d=slotMin(lv,e),a=act((run.show||{})[e.id]);
-    const s=a!=null?a:q;
-    show.push({e:e,ps:p,pe:p+d,s:s,en:s+d,d:d,a:a!=null});
-    p+=d+chg;q=s+d+chg;
+  p=t.open;q=p;
+  showOrder(lv,d).forEach(e=>{
+    const dd=slotMin(lv,e),a=act((run.show||{})[e.id]);const s=a!=null?a:q;
+    show.push({e:e,ps:p,pe:p+dd,s:s,en:s+dd,d:dd,a:a!=null});
+    p+=dd+chg;q=s+dd+chg;
   });
   const endPlan=show.length?show[show.length-1].pe:null,endProj=show.length?show[show.length-1].en:null;
-  return {reh:reh,show:show,endPlan:endPlan,endProj:endProj,ended:run.end?act(run.end):null};
+  return {t:t,reh:reh,show:show,endPlan:endPlan,endProj:endProj,ended:runEnd(lv,d)};
 }
 /* いまの状態：最後に「開始」が押されたもの */
-function liveState(lv){
-  const sc=schedule(lv),seq=sc.reh.map(x=>Object.assign({ph:'reh'},x)).concat(sc.show.map(x=>Object.assign({ph:'show'},x)));
+function liveState(lv,d){
+  const sc=schedule(lv,d),seq=sc.reh.map(x=>Object.assign({ph:'reh'},x)).concat(sc.show.map(x=>Object.assign({ph:'show'},x)));
   let last=-1;seq.forEach((x,i)=>{if(x.a)last=i});
   const cur=last>=0?seq[last]:null,next=seq[last+1]||null;
   const delay=cur?Math.round(cur.s-cur.ps):0;
@@ -1453,16 +1491,19 @@ function modeView(){
 }
 
 /* ---------- ライブ一覧 ---------- */
+function idxDates(x){return String(x.dates||x.date||'').split(',').filter(Boolean).sort()}
 function liveListView(){
   const t=todayIso();
   const arr=Object.keys(L.idx||{}).map(id=>Object.assign({id:id},L.idx[id]));
-  const up=arr.filter(x=>(x.date||'')>=t).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  const past=arr.filter(x=>(x.date||'')<t).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const last=x=>{const d=idxDates(x);return d[d.length-1]||''},first=x=>idxDates(x)[0]||'';
+  const up=arr.filter(x=>last(x)>=t).sort((a,b)=>first(a).localeCompare(first(b)));
+  const past=arr.filter(x=>last(x)<t).sort((a,b)=>last(b).localeCompare(last(a)));
   const kids=[h('div',{class:'mhead'},[h('h2',{text:'ライブ'}),S.isAdmin?h('button',{class:'btn primary',onclick:()=>openLiveCfg(null),text:'＋ ライブを作る'}):null])];
-  const item=x=>h('button',{class:'lvitem'+(x.date===t?' today':''),onclick:()=>openLive(x.id)},[
-    h('div',{class:'lvdate',text:dateLabel(x.date)}),
-    h('div',{class:'lvbody'},[h('b',{text:x.name||'（名前なし）'}),h('span',{text:[x.venue,x.date===t?'今日':''].filter(Boolean).join('　')})]),
-    h('span',{class:'lvgo',text:'›'})]);
+  const item=x=>{const ds=idxDates(x),isT=ds.indexOf(t)>=0;
+    return h('button',{class:'lvitem'+(isT?' today':''),onclick:()=>openLive(x.id)},[
+    h('div',{class:'lvdate'},[dateLabel(ds[0]),ds.length>1?h('small',{text:'ほか'+(ds.length-1)+'日'}):null]),
+    h('div',{class:'lvbody'},[h('b',{text:x.name||'（名前なし）'}),h('span',{text:[x.venue,ds.length>1?ds.map(dateLabel).join('・'):'',isT?'今日':''].filter(Boolean).join('　')})]),
+    h('span',{class:'lvgo',text:'›'})])};
   if(!up.length&&!past.length)kids.push(h('div',{class:'card'},[h('p',{text:S.isAdmin?'まだライブがありません。「＋ ライブを作る」から作ってください。':'まだライブがありません。運営がライブを作ると、ここに出てきます。'})]));
   if(up.length)kids.push(h('div',{class:'lvlist'},up.map(item)));
   if(past.length)kids.push(h('details',{class:'past'},[h('summary',{text:'終わったライブ（'+past.length+'）'}),h('div',{class:'lvlist'},past.map(item))]));
@@ -1473,21 +1514,27 @@ function liveListView(){
 }
 function openLive(id){
   L.liveId=id;L.live=null;
-  const ix=L.idx[id]||{};
-  L.sub=ix.date===todayIso()?'day':'set';
+  const ds=idxDates(L.idx[id]||{}),ti=ds.indexOf(todayIso());
+  L.day=ti>=0?ti:0;
+  L.sub=ti>=0?'day':'set';
   subscribeMode();render();window.scrollTo(0,0);
+}
+function curDay(lv){const n=daysOf(lv).length;if(!(L.day>=0&&L.day<n))L.day=0;return L.day}
+function daySeg(lv){
+  const ds=daysOf(lv);if(ds.length<2)return null;const d=curDay(lv);
+  return h('div',{class:'seg dayseg'},ds.map((x,i)=>h('button',{'aria-pressed':String(d===i),onclick:()=>{L.day=i;render()},text:(i+1)+'日目 '+dateLabel(x.date)})));
 }
 
 /* ---------- ライブの中 ---------- */
 function liveView(){
   const lv=L.live,ix=L.idx[L.liveId]||{};
   const back=h('button',{class:'btn sm',onclick:()=>{L.liveId='';L.live=null;subscribeMode();render()},text:'‹ ライブ一覧'});
-  if(!lv||!lv.cfg)return h('div',{class:'mview'},[back,h('div',{class:'empty-hint',text:lv===null&&L.refs['lives/'+L.liveId]?'読み込み中…':'読み込み中…'})]);
-  const c=lv.cfg;
+  if(!lv||!lv.cfg)return h('div',{class:'mview'},[back,h('div',{class:'empty-hint',text:'読み込み中…'})]);
+  const c=lv.cfg,ds=daysOf(lv);
   const tabs=[['day','当日'],['tt','タイムテーブル'],['set','セトリ'],['eq','機材']];
   if(!tabs.some(t=>t[0]===L.sub))L.sub='set';
   const head=h('div',{class:'lvhead'},[back,
-    h('div',{class:'lvtitle'},[h('h2',{text:c.name||ix.name||''}),h('span',{text:[dateLabel(c.date),c.venue,c.open!=null?'開演 '+hm(c.open):''].filter(Boolean).join('　')})]),
+    h('div',{class:'lvtitle'},[h('h2',{text:c.name||ix.name||''}),h('span',{text:[ds.map(x=>dateLabel(x.date)).join('・'),c.venue].filter(Boolean).join('　')})]),
     S.isAdmin?h('button',{class:'btn sm',onclick:()=>openLiveCfg(L.liveId),text:'ライブの設定'}):null]);
   const nav=h('nav',{class:'tabs'},tabs.map(t=>h('button',{role:'tab','aria-selected':String(L.sub===t[0]),onclick:()=>{L.sub=t[0];render()},text:t[1]})));
   const body=L.sub==='day'?dayView(lv):L.sub==='tt'?ttView(lv):L.sub==='eq'?eqView(lv):setView(lv);
@@ -1496,70 +1543,68 @@ function liveView(){
 
 /* ---------- 当日 ---------- */
 function dayView(lv){
-  const st=liveState(lv),c=cfgOf(lv),run=lv.run||{};
-  const kids=[];
+  const d=curDay(lv),st=liveState(lv,d),ended=runEnd(lv,d);
+  const kids=[daySeg(lv)];
   let big,subl,cls='nowcard';
-  if(run.end){big='終演しました';subl='おつかれさまでした';}
+  if(ended){big='終演しました';subl='おつかれさまでした';}
   else if(st.cur){
-    const ph=st.cur.ph==='reh'?'リハ中':'本番中';
-    big=ph+'：'+(st.cur.e.band||'');
+    big=(st.cur.ph==='reh'?'リハ中':'本番中')+'：'+(st.cur.e.band||'');
     subl=hm(st.cur.s)+'〜'+hm(st.cur.en)+(st.next?'　→ つぎ '+(st.next.ph==='reh'?'リハ ':'')+(st.next.e.band||'')+'（'+hm(st.next.s)+'〜）':'');
     cls+=' busy livebusy';
   }else{
     big=st.next?'まだ始まっていません':'バンドがまだいません';
     subl=st.next?'最初：'+(st.next.ph==='reh'?'リハ ':'本番 ')+(st.next.e.band||'')+'（'+hm(st.next.s)+'〜）':'セトリが出されると、ここに進行が出ます';
   }
-  const dl=st.cur&&!run.end?st.delay:0;
+  const dl=st.cur&&!ended?st.delay:0;
   kids.push(h('div',{class:cls},[h('div',{class:'nowbig',text:big}),h('div',{class:'nowsub',text:subl}),
-    st.cur&&!run.end?h('div',{class:'delay'+(dl>0?' late':dl<0?' early':''),text:dl>0?dl+'分押し':dl<0?(-dl)+'分巻き':'予定どおり'}):null]));
-  if(S.isAdmin)kids.push(runControls(lv,st));
+    st.cur&&!ended?h('div',{class:'delay'+(dl>0?' late':dl<0?' early':''),text:dl>0?dl+'分押し':dl<0?(-dl)+'分巻き':'予定どおり'}):null]));
+  if(S.isAdmin)kids.push(runControls(lv,st,d));
   const sec=(title,list,ph)=>{
     if(!list.length)return null;
     return h('div',{class:'card tight'},[h('h2',{text:title}),h('div',{class:'ttl2'},list.map((x,i)=>{
-      const isCur=st.cur&&st.cur.ph===ph&&st.cur.e.id===x.e.id&&!run.end;
+      const isCur=st.cur&&st.cur.ph===ph&&st.cur.e.id===x.e.id&&!ended;
       const done=x.a&&!isCur;
-      const row=h(S.isAdmin?'button':'div',{class:'tr2'+(isCur?' cur':'')+(done?' done':''),onclick:S.isAdmin?()=>openStartAt(lv,ph,x):null},[
+      return h(S.isAdmin?'button':'div',{class:'tr2'+(isCur?' cur':'')+(done?' done':''),onclick:S.isAdmin?()=>openStartAt(lv,ph,x,st.sc.t.date):null},[
         h('span',{class:'no',text:String(i+1)}),
         h('span',{class:'tm',text:hm(x.s)+'–'+hm(x.en)}),
         h('span',{class:'bn',text:x.e.band||''}),
         h('span',{class:'st',text:isCur?(ph==='reh'?'リハ中':'本番中'):done?'済':(Math.round(x.s-x.ps)>0?'+'+Math.round(x.s-x.ps)+'分':'')})]);
-      return row;
     }))]);
   };
   kids.push(sec('リハ',st.sc.reh,'reh'));
-  kids.push(sec('本番',st.sc.show,'show'));
+  kids.push(sec('本番（開演 '+hm(st.sc.t.open)+'）',st.sc.show,'show'));
   if(st.sc.endProj!=null)kids.push(h('p',{class:'rank',style:'text-align:center',text:'終演見込み '+hm(st.sc.endProj)+'（予定 '+hm(st.sc.endPlan)+'）'}));
   if(S.isAdmin)kids.push(h('p',{class:'rank',text:'時間がずれたら、行をタップして実際に始まった時間を入れると、そこから後ろが全部ずれます。'}));
   return h('div',{class:'col'},kids);
 }
-function runControls(lv,st){
-  const run=lv.run||{},kids=[];
-  const at=(ph,id,ms)=>{const up={};up['lives/'+L.liveId+'/run/'+ph+'/'+id]=ms;return up};
-  if(!run.end&&st.next){
+function runControls(lv,st,d){
+  const ended=runEnd(lv,d),kids=[],base='lives/'+L.liveId+'/run/';
+  const at=(ph,id,ms)=>{const up={};up[base+ph+'/'+id]=ms;return up};
+  const endUp=v=>{const up={},r=(lv.run||{}).end;if(typeof r==='number'){const o={};if(v!=null)o[d]=v;up[base+'end']=v==null?null:o}else up[base+'end/'+d]=v;return up};
+  if(!ended&&st.next){
     kids.push(h('button',{class:'btn primary bigbtn',onclick:()=>put(at(st.next.ph,st.next.e.id,Date.now()),(st.next.e.band||'')+' を開始しました'),
       text:'▶ '+(st.next.ph==='reh'?'リハ ':'本番 ')+(st.next.e.band||'')+' を開始'}));
   }
-  if(!run.end&&!st.next&&st.cur&&st.cur.ph==='show'){
-    kids.push(h('button',{class:'btn primary bigbtn',onclick:()=>{const up={};up['lives/'+L.liveId+'/run/end']=Date.now();put(up,'終演にしました')},text:'■ 終演'}));
-  }
+  if(!ended&&!st.next&&st.cur&&st.cur.ph==='show')kids.push(h('button',{class:'btn primary bigbtn',onclick:()=>put(endUp(Date.now()),'終演にしました'),text:'■ 終演'}));
   const row=[];
-  if(run.end)row.push(h('button',{class:'btn sm',onclick:()=>{const up={};up['lives/'+L.liveId+'/run/end']=null;put(up,'終演を取り消しました')},text:'終演を取り消す'}));
+  if(ended)row.push(h('button',{class:'btn sm',onclick:()=>put(endUp(null),'終演を取り消しました'),text:'終演を取り消す'}));
   else if(st.cur)row.push(h('button',{class:'btn sm',onclick:()=>put(at(st.cur.ph,st.cur.e.id,null),'1つ戻しました'),text:'↩ 1つ戻す'}));
   const armed=L.arm==='reset';
-  if(st.cur||run.end)row.push(h('button',{class:'btn sm danger',onclick:()=>{if(!armed){L.arm='reset';render();return}L.arm='';const up={};up['lives/'+L.liveId+'/run']=null;put(up,'進行をリセットしました')},text:armed?'もう一度押すとリセット':'進行をリセット'}));
+  if(st.cur||ended)row.push(h('button',{class:'btn sm danger',onclick:()=>{if(!armed){L.arm='reset';render();return}L.arm='';
+    const up={};st.seq.forEach(x=>{up[base+x.ph+'/'+x.e.id]=null});Object.assign(up,endUp(null));put(up,'この日の進行をリセットしました')},text:armed?'もう一度押すとリセット':'進行をリセット'}));
   if(row.length)kids.push(h('div',{class:'row'},row));
   return h('div',{class:'card tight'},[h('h2',{text:'進行（運営）'})].concat(kids));
 }
-function openStartAt(lv,ph,x){
-  const c=cfgOf(lv),cur=(((lv.run||{})[ph])||{})[x.e.id];
-  const inp=h('input',{type:'time',value:hm(cur!=null?(cur-midnightMs(c.date))/60000:x.s).padStart(5,'0')});
+function openStartAt(lv,ph,x,date){
+  const cur=(((lv.run||{})[ph])||{})[x.e.id],mid=midnightMs(date);
+  const inp=h('input',{type:'time',value:hm(cur!=null?(cur-mid)/60000:x.s).padStart(5,'0')});
   const save=v=>{const up={};up['lives/'+L.liveId+'/run/'+ph+'/'+x.e.id]=v;put(up,v==null?'取り消しました':'時間を入れました');closeSheet()};
   layer(h('div',{class:'sheet',role:'dialog','aria-modal':'true'},[
     h('h3',{text:(ph==='reh'?'リハ：':'本番：')+(x.e.band||'')}),
     h('div',{class:'rank',text:'予定 '+hm(x.ps)+'〜'+hm(x.pe)}),
     h('div',{class:'field'},[h('span',{class:'lb',text:'実際に始まった時間'}),inp]),
     h('div',{class:'row'},[
-      h('button',{class:'btn primary',onclick:()=>{const m=parseHM(inp.value);if(m==null){toast('時間を入れてください');return}save(midnightMs(c.date)+m*60000)},text:'この時間にする'}),
+      h('button',{class:'btn primary',onclick:()=>{const m=parseHM(inp.value);if(m==null){toast('時間を入れてください');return}save(mid+m*60000)},text:'この時間にする'}),
       h('button',{class:'btn',onclick:()=>save(Date.now()),text:'いま始まった'}),
       cur!=null?h('button',{class:'btn danger',onclick:()=>save(null),text:'取り消す'}):null,
       h('button',{class:'btn sm',onclick:closeSheet,text:'閉じる'})])
@@ -1567,40 +1612,63 @@ function openStartAt(lv,ph,x){
 }
 
 /* ---------- タイムテーブル ---------- */
+function capCard(lv,d){
+  const cp=capacity(lv,d),t=dayTimes(lv,d),c=cfgOf(lv);
+  if(!cp)return S.isAdmin?h('p',{class:'rank',text:'「ライブの設定」でこの日の「使える時間（開始〜終わり）」を入れると、何バンドまで入るか計算します。'}):null;
+  const left=cp.N-cp.n;
+  const basis='1バンド '+(c.slotMode==='fixed'?'持ち時間 ':'平均 ')+cp.avg+'分'+(cp.rm?'＋リハ '+cp.rm+'分':'')+'＋転換 '+cp.ch+'分'+(cp.gap?'、リハ後の休憩 '+cp.gap+'分':'')+'で計算';
+  return h('div',{class:'card tight capcard'},[
+    h('h2',{text:'この日に入るバンド数'}),
+    h('div',{class:'capbig'},[h('b',{text:'最大 '+cp.N+' バンド'}),h('span',{class:left<0?'err':left===0?'rank':'okline',text:left<0?'いま '+cp.n+'バンドで '+(-left)+' バンドはみ出しています':'いま '+cp.n+'バンド → あと '+left+' バンド入ります'})]),
+    h('div',{class:'rank',text:'使える時間 '+hm(t.start)+'〜'+hm(t.end)+'（'+minLabel(cp.W)+'）。'+basis+(c.slotMode!=='fixed'&&!showOrder(lv).some(e=>setSec(e)>0)?'（セトリが出る前なので目安の時間）':'')})]);
+}
 function ttView(lv){
-  const c=cfgOf(lv),sc=schedule(lv),kids=[];
-  const so=showOrder(lv);
-  const info=[c.open!=null?'開演 '+hm(c.open):'開演 未設定','転換 '+(+c.changeMin||0)+'分',c.slotMode==='fixed'?'持ち時間 '+(+c.fixedMin||0)+'分（固定）':'持ち時間 セトリの合計'];
-  kids.push(h('div',{class:'rank',text:info.join('　')}));
-  if(!so.length){kids.push(h('div',{class:'card'},[h('p',{text:'まだセトリが出ていません。「セトリ」タブから出されると、自動でタイムテーブルができます。'})]));return h('div',{class:'col'},kids)}
-  const mv=(key,list,i,d)=>{const ids=list.map(x=>x.e.id);const j=i+d;if(j<0||j>=ids.length)return;[ids[i],ids[j]]=[ids[j],ids[i]];const up={};up['lives/'+L.liveId+'/cfg/'+key]=ids;if(key==='rehOrder')up['lives/'+L.liveId+'/cfg/rehMode']='custom';put(up)};
-  const table=(title,list,key,extra)=>h('div',{class:'card tight'},[h('div',{class:'mhead'},[h('h2',{text:title}),extra||null]),
-    h('div',{class:'ttl2'},list.map((x,i)=>h('div',{class:'tr2'+(key==='order'&&isOver(lv,x.e)?' over':'')},[
+  const c=cfgOf(lv),d=curDay(lv),sc=schedule(lv,d),t=sc.t,kids=[daySeg(lv)];
+  const so=sc.show;
+  const info=[t.reh!=null?'リハ開始 '+hm(t.reh)+(t.anchor==='open'?'（自動）':''):null,'開演 '+hm(t.open)+(t.anchor==='reh'?'（自動）':''),'転換 '+(+c.changeMin||0)+'分',c.slotMode==='fixed'?'持ち時間 '+(+c.fixedMin||0)+'分（固定）':'持ち時間 セトリの合計'];
+  kids.push(h('div',{class:'rank',text:info.filter(Boolean).join('　')}));
+  kids.push(capCard(lv,d));
+  if(!so.length){kids.push(h('div',{class:'card'},[h('p',{text:showOrder(lv).length?'この日のバンドはまだいません。別の日のバンドを、タイムテーブルの「日」でこの日に移せます。':'まだセトリが出ていません。「セトリ」タブから出されると、自動でタイムテーブルができます。'})]));
+    kids.push(otherDays(lv,d));return h('div',{class:'col'},kids)}
+  /* 並べ替えは、全体の並びの中で入れ替える（日をまたいでも崩れない） */
+  const mvShow=(a,b)=>{const ids=showOrder(lv).map(x=>x.id),i=ids.indexOf(a),j=ids.indexOf(b);[ids[i],ids[j]]=[ids[j],ids[i]];const up={};up['lives/'+L.liveId+'/cfg/order']=ids;put(up)};
+  const mvReh=(a,b)=>{const all=[];daysOf(lv).forEach((_,k)=>rehList(lv,k).forEach(x=>all.push(x.id)));const i=all.indexOf(a),j=all.indexOf(b);[all[i],all[j]]=[all[j],all[i]];const up={};up['lives/'+L.liveId+'/cfg/rehOrder']=all;up['lives/'+L.liveId+'/cfg/rehMode']='custom';put(up)};
+  const nD=daysOf(lv).length;
+  const table=(title,list,isShow,extra)=>h('div',{class:'card tight'},[h('div',{class:'mhead'},[h('h2',{text:title}),extra||null]),
+    h('div',{class:'ttl2'},list.map((x,i)=>{
+      const mv=isShow?mvShow:mvReh;
+      const dsel=S.isAdmin&&isShow&&nD>1?h('select',{class:'sel-sm','aria-label':'出る日',onchange:ev=>{const up={};up['lives/'+L.liveId+'/entries/'+x.e.id+'/day']=+ev.target.value;put(up,'日を移しました')}},daysOf(lv).map((y,k)=>{const o=h('option',{value:String(k),text:(k+1)+'日目'});if(k===d)o.selected=true;return o})):null;
+      return h('div',{class:'tr2'+(isShow&&isOver(lv,x.e)?' over':'')},[
       h('span',{class:'no',text:String(i+1)}),
       h('span',{class:'tm',text:hm(x.ps)+'–'+hm(x.pe)}),
-      h('span',{class:'bn'},[x.e.band||'',key==='order'?h('small',{text:' '+minLabel(x.d)+(isOver(lv,x.e)?'（セトリ '+fmtSec(setSec(x.e))+' で超過）':'')}):null]),
-      S.isAdmin?h('span',{class:'mv'},[h('button',{class:'btn sm',disabled:i===0,'aria-label':'上へ',onclick:()=>mv(key,list,i,-1),text:'↑'}),h('button',{class:'btn sm',disabled:i===list.length-1,'aria-label':'下へ',onclick:()=>mv(key,list,i,1),text:'↓'})]):h('span')])))]);
+      h('span',{class:'bn'},[x.e.band||'',isShow?h('small',{text:' '+minLabel(x.d)+(isOver(lv,x.e)?'（セトリ '+fmtSec(setSec(x.e))+' で超過）':'')}):null]),
+      S.isAdmin?h('span',{class:'mv'},[dsel,h('button',{class:'btn sm',disabled:i===0,'aria-label':'上へ',onclick:()=>mv(x.e.id,list[i-1].e.id),text:'↑'}),h('button',{class:'btn sm',disabled:i===list.length-1,'aria-label':'下へ',onclick:()=>mv(x.e.id,list[i+1].e.id),text:'↓'})]):h('span')]);
+    }))]);
   if(sc.reh.length){
     const rm=c.rehMode||'reverse';
-    const seg=S.isAdmin?h('div',{class:'seg'},[['reverse','逆リハ'],['same','本番順'],['custom','手動']].map(o=>h('button',{'aria-pressed':String(rm===o[0]),onclick:()=>{const up={};up['lives/'+L.liveId+'/cfg/rehMode']=o[0];if(o[0]==='custom')up['lives/'+L.liveId+'/cfg/rehOrder']=sc.reh.map(x=>x.e.id);put(up)},text:o[1]}))):h('span',{class:'rank',text:rm==='reverse'?'逆リハ':rm==='same'?'本番順':''});
-    kids.push(table('リハ（'+(+c.rehMin||0)+'分ずつ）',sc.reh,'rehOrder',seg));
-  }else if(S.isAdmin)kids.push(h('p',{class:'rank',text:'リハの開始時間を「ライブの設定」で入れると、リハの時間割もできます。'}));
-  kids.push(table('本番',sc.show,'order'));
-  const tot=sc.endPlan!=null&&c.open!=null?sc.endPlan-c.open:null;
-  const sumKids=[h('div',{text:'終演予定 '+hm(sc.endPlan)+(tot!=null?'（全体 '+minLabel(tot)+'）':'')})];
-  if(c.totalMin&&tot!=null){
-    const ok=tot<=+c.totalMin;
-    sumKids.push(h('div',{class:ok?'okline':'err',text:ok?'決められた時間（'+minLabel(+c.totalMin)+'）に収まっています。残り '+minLabel(+c.totalMin-tot):'決められた時間（'+minLabel(+c.totalMin)+'）を '+minLabel(tot-c.totalMin)+' こえています'}));
-  }
+    const seg=S.isAdmin?h('div',{class:'seg'},[['reverse','逆リハ'],['same','本番順'],['custom','手動']].map(o=>h('button',{'aria-pressed':String(rm===o[0]),onclick:()=>{const up={};up['lives/'+L.liveId+'/cfg/rehMode']=o[0];if(o[0]==='custom'){const all=[];daysOf(lv).forEach((_,k)=>rehList(lv,k).forEach(x=>all.push(x.id)));up['lives/'+L.liveId+'/cfg/rehOrder']=all}put(up)},text:o[1]}))):h('span',{class:'rank',text:rm==='reverse'?'逆リハ':rm==='same'?'本番順':''});
+    kids.push(table('リハ（'+(+c.rehMin||0)+'分ずつ）',sc.reh,false,seg));
+    if(t.gap)kids.push(h('div',{class:'rank',style:'text-align:center',text:'リハ後の休憩 '+t.gap+'分'}));
+  }else if(S.isAdmin)kids.push(h('p',{class:'rank',text:'「ライブの設定」でリハの時間（1バンド何分）を入れると、リハの時間割もできます。'}));
+  kids.push(table('本番（開演 '+hm(t.open)+'）',sc.show,true));
+  const tot=sc.endPlan!=null?sc.endPlan-t.open:null;
+  const sumKids=[h('div',{text:'終演予定 '+hm(sc.endPlan)+(tot!=null?'（本番 '+minLabel(tot)+'）':'')})];
+  if(t.end!=null&&sc.endPlan!=null){const ok=sc.endPlan<=t.end;sumKids.push(h('div',{class:ok?'okline':'err',text:ok?'終わり（'+hm(t.end)+'）まで あと '+minLabel(t.end-sc.endPlan):'終わり（'+hm(t.end)+'）を '+minLabel(sc.endPlan-t.end)+' こえています'}))}
+  if(t.start!=null&&t.reh!=null&&t.reh<t.start)sumKids.push(h('div',{class:'err',text:'リハ開始 '+hm(t.reh)+' が、使える時間の開始（'+hm(t.start)+'）より前になっています'}));
   kids.push(h('div',{class:'card tight'},sumKids));
   kids.push(h('div',{class:'row'},[h('button',{class:'btn',onclick:()=>copyTT(lv),text:'LINE用にコピー'})]));
   return h('div',{class:'col'},kids);
 }
+function otherDays(lv,d){return null}
 function copyTT(lv){
-  const c=cfgOf(lv),sc=schedule(lv);
-  let t='【'+(c.name||'')+'】'+dateLabel(c.date)+(c.venue?' '+c.venue:'')+'\n';
-  if(sc.reh.length){t+='\n▼リハ\n'+sc.reh.map(x=>hm(x.ps)+'〜 '+(x.e.band||'')).join('\n')+'\n'}
-  t+='\n▼本番（開演 '+hm(c.open)+'）\n'+sc.show.map(x=>hm(x.ps)+'〜'+hm(x.pe)+' '+(x.e.band||'')).join('\n')+'\n終演予定 '+hm(sc.endPlan);
+  const c=cfgOf(lv);
+  let t='【'+(c.name||'')+'】'+(c.venue?' '+c.venue:'')+'\n';
+  daysOf(lv).forEach((_,d)=>{
+    const sc=schedule(lv,d);if(!sc.show.length)return;
+    t+='\n■ '+dayName(lv,d)+'\n';
+    if(sc.reh.length)t+='▼リハ\n'+sc.reh.map(x=>hm(x.ps)+'〜 '+(x.e.band||'')).join('\n')+'\n';
+    t+='▼本番（開演 '+hm(sc.t.open)+'）\n'+sc.show.map(x=>hm(x.ps)+'〜'+hm(x.pe)+' '+(x.e.band||'')).join('\n')+'\n終演予定 '+hm(sc.endPlan)+'\n';
+  });
   const done=()=>toast('コピーしました。LINEに貼り付けできます');
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,()=>showText(t));else showText(t);
 }
@@ -1608,7 +1676,7 @@ function showText(t){layer(h('div',{class:'sheet'},[h('h3',{text:'コピーし�
 
 /* ---------- セトリ ---------- */
 function setView(lv){
-  const c=cfgOf(lv),so=showOrder(lv),kids=[];
+  const c=cfgOf(lv),so=showOrder(lv),kids=[],nD=daysOf(lv).length;
   const locked=!!c.locked;
   kids.push(h('div',{class:'card tight'},[
     h('div',{class:locked?'err':'rank',text:locked?'セトリの受付は締め切られました。直したいときは運営へ。':'バンドごとに1つ出してください。出したあとも、同じスマホから直せます。'}),
@@ -1618,7 +1686,7 @@ function setView(lv){
     const mine=e.uid===S.uid;
     return h('button',{class:'li lvent'+(mine?' mine':''),onclick:()=>openEntry(e.id)},[
       h('span',{class:'no2',text:String(i+1)}),
-      h('div',{style:'min-width:0'},[h('div',{class:'nm'},[e.band||'',mine?h('span',{class:'chip confirmed',style:'margin-left:6px',text:'自分'}):null]),
+      h('div',{style:'min-width:0'},[h('div',{class:'nm'},[e.band||'',nD>1?h('span',{class:'chip',style:'margin-left:6px',text:(dayOfEntry(lv,e)+1)+'日目'}):null,mine?h('span',{class:'chip confirmed',style:'margin-left:6px',text:'自分'}):null]),
         h('div',{class:'meta',text:'合計 '+fmtSec(setSec(e))+'　'+songsOf(e).length+'行　'+membersOf(e).length+'人'+(isOver(lv,e)?'　持ち時間こえ':'')})]),
       h('span',{class:'lvgo',text:'›'})]);
   })));
@@ -1820,19 +1888,52 @@ function seedTpls(){
 
 /* ---------- ライブを作る・設定（運営） ---------- */
 function openLiveCfg(id){
-  const c=id&&L.live&&L.liveId===id?cfgOf(L.live):{};
+  const lv=id&&L.live&&L.liveId===id?L.live:null,c=lv?cfgOf(lv):{};
   const isNew=!id;
   const f=(lb,el,note)=>h('div',{class:'field'},[h('label',{text:lb}),el,note?h('div',{class:'rank',text:note}):null]);
   const name=h('input',{type:'text',maxlength:'40',value:c.name||'',placeholder:'例：11月定期ライブ'});
-  const date=h('input',{type:'date',value:c.date||todayIso()});
   const venue=h('input',{type:'text',maxlength:'30',value:c.venue||'',placeholder:'例：講堂'});
-  const tm=(v,def)=>h('input',{type:'time',value:(v!=null?hm(v):def).padStart(5,'0')});
-  const open=tm(c.open,'18:00'),rs=h('input',{type:'time',value:c.rehStart!=null?hm(c.rehStart).padStart(5,'0'):''});
-  const num=(v,def)=>h('input',{type:'number',min:'0',max:'600',inputmode:'numeric',value:String(v!=null?v:def),class:'num'});
-  const rehMin=num(c.rehMin,15),chg=num(c.changeMin,10),fixed=num(c.fixedMin,20),total=h('input',{type:'number',min:'0',max:'1440',inputmode:'numeric',value:c.totalMin?String(c.totalMin):'',placeholder:'なし',class:'num'});
+  const tmI=v=>h('input',{type:'time',value:v!=null&&v!==''?hm(+v).padStart(5,'0'):''});
+  const num=(v,def,ph)=>h('input',{type:'number',min:'0',max:'600',inputmode:'numeric',value:v!=null&&v!==''?String(v):(def!=null?String(def):''),placeholder:ph||'',class:'num'});
+  const rehMin=num(c.rehMin,15),chg=num(c.changeMin,10),fixed=num(c.fixedMin,20),est=num(c.estMin,20);
   let mode=c.slotMode||'setlist';
   const fixedBox=h('div',{class:'row'},[fixed,'分']);fixedBox.hidden=mode!=='fixed';
-  const seg=h('div',{class:'seg'},[['setlist','セトリの合計'],['fixed','〇分で固定']].map(o=>{const b=h('button',{type:'button','aria-pressed':String(mode===o[0]),text:o[1],onclick:()=>{mode=o[0];seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));fixedBox.hidden=mode!=='fixed'}});return b}));
+  const estBox=f('セトリが出る前の目安（1バンド何分）',h('div',{class:'row'},[est,'分']),'何バンド入るかの計算に使います。セトリが出てきたら、その平均に切り替わります');estBox.hidden=mode==='fixed';
+  const seg=h('div',{class:'seg'},[['setlist','セトリの合計'],['fixed','〇分で固定']].map(o=>{const b=h('button',{type:'button','aria-pressed':String(mode===o[0]),text:o[1],onclick:()=>{mode=o[0];seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));fixedBox.hidden=mode!=='fixed';estBox.hidden=mode==='fixed';prevAll()}});return b}));
+  /* 本番の日（複数OK） */
+  const dayBox=h('div',{class:'rows'});
+  const counts=d=>lv?showOrder(lv,d).length:0;
+  const prevAll=()=>[...dayBox.children].forEach(r=>r._prev&&r._prev());
+  const addDay=(dy,orig)=>{
+    dy=dy||{};
+    const date=h('input',{type:'date',value:dy.date||(dayBox.lastElementChild?addDays(dayBox.lastElementChild._get().date||todayIso(),1):todayIso())});
+    const st=tmI(dy.start),en=tmI(dy.end);
+    let anc=dy.anchor==='reh'?'reh':'open';
+    const at=tmI(anc==='reh'?dy.rehStart:(dy.open!=null?dy.open:1080));
+    const gap=num(dy.gap,0);
+    const albl=h('label',{text:anc==='reh'?'リハ開始':'開演'});
+    const prev=h('div',{class:'rank'});
+    const aseg=h('div',{class:'seg'},[['open','開演から決める'],['reh','リハ開始から決める']].map(o=>{const b=h('button',{type:'button','aria-pressed':String(anc===o[0]),text:o[1],onclick:()=>{anc=o[0];aseg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));albl.textContent=anc==='reh'?'リハ開始':'開演';row._prev()}});return b}));
+    const row=h('div',{class:'srow dayrow'},[
+      h('div',{class:'row',style:'justify-content:space-between'},[h('b',{class:'dno'}),h('button',{type:'button',class:'btn sm',onclick:()=>{if(dayBox.children.length<2){toast('1日は必要です');return}row.remove();renum()},text:'この日を消す'})]),
+      h('div',{class:'two'},[f('日付',date),h('div',{class:'field'},[h('label',{text:'使える時間（任意）'}),h('div',{class:'row',style:'flex-wrap:nowrap'},[st,'〜',en])])]),
+      h('div',{class:'field'},[h('span',{class:'lb',text:'時間の決め方'}),aseg]),
+      h('div',{class:'two'},[h('div',{class:'field'},[albl,at]),f('リハ後の休憩（分）',gap)]),
+      prev]);
+    row._orig=orig;
+    row._get=()=>{const o={date:date.value,anchor:anc,gap:+gap.value||0};const v=parseHM(at.value);if(anc==='reh')o.rehStart=v;else o.open=v;const s=parseHM(st.value),e=parseHM(en.value);if(s!=null)o.start=s;if(e!=null)o.end=e;return o};
+    row._prev=()=>{
+      const o=row._get(),n=orig!=null?counts(orig):0,rm=+rehMin.value||0,v=anc==='reh'?o.rehStart:o.open;
+      if(v==null){prev.textContent='';return}
+      const other=anc==='reh'?v+n*rm+o.gap:v-o.gap-n*rm;
+      prev.textContent=rm?(anc==='reh'?'→ 開演は自動で '+hm(other):'→ リハ開始は自動で '+hm(other))+'（いま'+n+'バンド・リハ'+rm+'分ずつ'+(o.gap?'・休憩'+o.gap+'分':'')+'。バンドが増減すると自動でずれます）':'リハの時間が0分なので、リハの時間割はなし';
+    };
+    [date,st,en,at,gap].forEach(x=>x.addEventListener('input',row._prev));
+    dayBox.append(row);row._prev();renum();
+  };
+  const renum=()=>[...dayBox.children].forEach((r,i)=>{r.querySelector('.dno').textContent=(i+1)+'日目'});
+  (lv?daysOf(lv):[{}]).forEach((dy,i)=>addDay(dy,lv?i:null));
+  rehMin.addEventListener('input',prevAll);
   const tids=Object.keys(L.tpls||{});
   const tpl=h('select',null,[h('option',{value:'',text:'なし（あとで入れる）'})].concat(tids.map(t=>h('option',{value:t,text:L.tpls[t].name||t}))));
   if(isNew&&tids.length)tpl.value=tids[0];
@@ -1841,24 +1942,30 @@ function openLiveCfg(id){
   const save=h('button',{class:'btn primary',text:isNew?'ライブを作る':'保存',onclick:async()=>{
     err.textContent='';
     const nm=name.value.trim();if(!nm){err.textContent='ライブ名を入れてください';return}
-    if(!date.value){err.textContent='日付を入れてください';return}
+    const rows=[...dayBox.children],days=rows.map(r=>r._get());
+    for(let i=0;i<days.length;i++){
+      if(!days[i].date){err.textContent=(i+1)+'日目の日付を入れてください';return}
+      if((days[i].anchor==='reh'?days[i].rehStart:days[i].open)==null){err.textContent=(i+1)+'日目の'+(days[i].anchor==='reh'?'リハ開始':'開演')+'時間を入れてください';return}
+    }
     const lid=id||newKey('lives');
-    const cfg={name:nm,date:date.value,venue:venue.value.trim(),open:parseHM(open.value),rehStart:parseHM(rs.value),rehMin:+rehMin.value||0,changeMin:+chg.value||0,
-      slotMode:mode,fixedMin:+fixed.value||0,totalMin:+total.value||0,locked:locked.checked,
+    const cfg={name:nm,venue:venue.value.trim(),days:days,date:days[0].date,open:days[0].open!=null?days[0].open:days[0].rehStart,
+      rehMin:+rehMin.value||0,changeMin:+chg.value||0,slotMode:mode,fixedMin:+fixed.value||0,estMin:+est.value||20,locked:locked.checked,
       rehMode:c.rehMode||'reverse',order:c.order||null,rehOrder:c.rehOrder||null,tpl:isNew?tpl.value:(c.tpl||'')};
-    if(cfg.open==null){err.textContent='開演時間を入れてください';return}
-    if(cfg.rehStart==null)delete cfg.rehStart;
-    const up={};up['lives/'+lid+'/cfg']=cfg;up['liveIdx/'+lid]={name:cfg.name,date:cfg.date,venue:cfg.venue};
+    const up={};up['lives/'+lid+'/cfg']=cfg;
+    up['liveIdx/'+lid]={name:cfg.name,date:days.map(x=>x.date).sort()[0],dates:days.map(x=>x.date).sort().join(','),venue:cfg.venue};
     if(isNew&&tpl.value&&L.tpls[tpl.value])up['lives/'+lid+'/items']=L.tpls[tpl.value].items||null;
+    /* 日を消したり並びが変わったら、バンドの「出る日」もそれに合わせる */
+    if(lv){const map={};rows.forEach((r,i)=>{if(r._orig!=null)map[r._orig]=i});
+      entriesOf(lv).forEach(e=>{const o=dayOfEntry(lv,e),n=map[o]!=null?map[o]:0;if(n!==(+e.day||0))up['lives/'+lid+'/entries/'+e.id+'/day']=n})}
     save.disabled=true;
     if(await put(up,isNew?'ライブを作りました':'保存しました')){closeSheet();if(isNew)openLive(lid)}else save.disabled=false;
   }});
   const kids=[h('h3',{text:isNew?'ライブを作る':'ライブの設定'}),
-    f('ライブ名',name),h('div',{class:'two'},[f('日付',date),f('会場',venue)]),
-    h('div',{class:'two'},[f('開演',open),f('リハ開始',rs,'空ならリハの時間割なし')]),
-    h('div',{class:'two'},[f('リハ 1バンド（分）',rehMin),f('転換（分）',chg)]),
-    h('div',{class:'field'},[h('span',{class:'lb',text:'1バンドの持ち時間'}),seg,fixedBox]),
-    f('ライブ全体の時間（分）',total,'入れると、全バンド収まるかチェックします'),
+    h('div',{class:'two'},[f('ライブ名',name),f('会場',venue)]),
+    h('div',{class:'two'},[f('リハ 1バンド（分）',rehMin,'0ならリハなし'),f('転換（分）',chg)]),
+    h('div',{class:'field'},[h('span',{class:'lb',text:'1バンドの持ち時間'}),seg,fixedBox]),estBox,
+    h('div',{class:'field'},[h('span',{class:'lb',text:'本番の日'}),dayBox,h('div',{class:'row'},[h('button',{type:'button',class:'btn sm',onclick:()=>addDay({},null),text:'＋ 日を追加'})]),
+      h('div',{class:'rank',text:'開演かリハ開始のどちらかを決めると、もう一方はバンド数から自動で計算します。「使える時間」を入れると、何バンドまで入るかも出ます。'})]),
     isNew?f('持ち出し機材のテンプレート',tpl):null,
     h('label',{class:'optl'},[locked,' セトリの受付を締め切る（運営以外は出せない・直せない）']),
     err,h('div',{class:'row',style:'justify-content:flex-end'},[h('button',{class:'btn',onclick:closeSheet,text:'キャンセル'}),save])];
