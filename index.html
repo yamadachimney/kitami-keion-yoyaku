@@ -157,6 +157,10 @@ select,input[type=text]{border:1px solid var(--line);background:var(--surface);b
 .list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
 .li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:10px 14px;border-top:1px solid var(--line2)}
 .li:first-child{border-top:0}
+.dayhd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:8px 14px;background:var(--line2);border-top:1px solid var(--line)}
+.dayhd:first-child{border-top:0}.dayhd b{font-size:14px}.dayhd span{font-size:12px;color:var(--muted)}
+.dayhd.sat b{color:var(--accent)}.dayhd.sun b{color:var(--bad)}
+.dayhd+.li{border-top:0}
 .li .dot{width:10px;height:36px;border-radius:4px;background:var(--kc)}
 .li.band{--kc:var(--band)} .li.drum{--kc:var(--drum)} .li.other{--kc:var(--other)}
 .li .nm{font-weight:700;overflow-wrap:anywhere}
@@ -885,20 +889,21 @@ function clashBox(r){
 function listView(){
   const only=S.isAdmin?!!S.onlyMine:true;
   const items=S.reqs.filter(r=>!only||mine(r));
-  const pend=items.filter(r=>r.status==='pending').sort((a,b)=>(Number(conflicts(b))-Number(conflicts(a)))||byDecision(a,b));
-  const conf=items.filter(r=>r.status==='confirmed').sort((a,b)=>a.day-b.day||a.s-b.s);
-  const rej=items.filter(r=>r.status==='rejected').sort(byDecision);
-  const rows=pend.concat(conf,rej);
+  /* 曜日ごとにまとめて、その日の中は時間順（見送りは最後） */
+  const rows=items.slice().sort((a,b)=>a.day-b.day||(Number(a.status==='rejected')-Number(b.status==='rejected'))||a.s-b.s||a.e-b.e||byDecision(a,b));
   const bar=h('div',{class:'row'});
   if(S.isAdmin){
     bar.append(h('label',{class:'row',style:'gap:6px'},[h('input',{type:'checkbox',id:'onlyMine',checked:S.onlyMine||null,onchange:e=>{S.onlyMine=e.target.checked;render()}}),'自分の分だけ表示']));
-    bar.append(h('span',{class:'rank',text:'希望は確定する順（'+order().map(k=>KINDS[k]).join('→')+'）に並びます'}));
+    bar.append(h('span',{class:'rank',text:'曜日ごと・時間順に並んでいます。確定は '+order().map(k=>KINDS[k]).join('→')+' の順'}));
   }else{
     bar.append(h('span',{class:'rank',text:'あなたが出した希望と予約です。'}));
   }
   const list=h('div',{class:'list'});
   if(!rows.length)list.append(h('div',{class:'empty-hint',text:only&&S.isAdmin?'あなたの予約・希望はまだありません。':S.isAdmin?'この週の予約・希望はまだありません。':'まだ予約・希望はありません。週間表の空いている時間をタップして追加できます。'}));
+  let lastDay=-1;
   rows.forEach(r=>{
+    if(r.day!==lastDay){lastDay=r.day;const n=rows.filter(x=>x.day===r.day).length,nb=rows.filter(x=>x.day===r.day&&x.status==='pending'&&conflicts(x)).length;
+      list.append(h('div',{class:'dayhd'+(r.day===5?' sat':r.day===6?' sun':'')},[h('b',{text:DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))}),h('span',{text:n+'件'+(nb?'　被り '+nb+'件':'')})]))}
     const acts=actions(r);
     if(S.isAdmin)acts.unshift(kindSelect(r));
     const cb=r.status==='rejected'?null:clashBox(r);
