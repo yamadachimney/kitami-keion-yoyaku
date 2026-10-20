@@ -12,6 +12,7 @@
 |---|---|
 | 本番サイト | https://yamadachimney.github.io/kitami-keion-yoyaku/ |
 | LINE固定用URL | https://yamadachimney.github.io/kitami-keion-yoyaku/?openExternalBrowser=1&v=4 （`v=` はLINEのリンク画像キャッシュ回避用。画像を変えたら数字を上げる） |
+| ティア表 | https://yamadachimney.github.io/kitami-keion-yoyaku/tier/ （部室予約とは別ページ。同じFirebaseを使う。→ 7章） |
 | テスト版 | https://yamadachimney.github.io/kitami-keion-yoyaku/beta/ （本番と同じDBを使う。新機能はまずここで確認） |
 | GitHub | アカウント `yamadachimney` / リポジトリ `kitami-keion-yoyaku`（main ブランチ → GitHub Pages、ルート配信） |
 | Firebase | プロジェクト `kitami-keion`（Sparkプラン＝無料） |
@@ -50,6 +51,9 @@ lives/<liveId>/
   run     {reh/<entryId>: ms, show/<entryId>: ms, end/<dayIndex>: ms}
 tpls/<id> {name, items/<k>{...}}   ※ 外ステージ用（outdoor）・講堂用（hall）
 supplies/<id> {uid, item, note, who, status: new|seen|ordered|done, createdAt}
+tierTopics/<tid> {name, by, uid, createdAt}          ※ ティア表のお題
+tierItems/<tid>/<iid> {t, uid, createdAt}            ※ お題のアイテム（だれでも追加）
+tierLists/<tid>/<uid> {who, uid, r{<iid>: S|A|B|C|D}, createdAt, updatedAt}   ※ 1端末1つ
 ```
 
 時刻（ライブ側）は「その日の0時からの分」。
@@ -118,3 +122,12 @@ node --check dev/built_check.js   # 文法チェック
 - 使い方の画像（スライド）は「！」を使わない
 - 大きな変更は「話がまとまるまで変えない」→ テスト版で確認 →「反映して」で本番へ
 - 暗証番号・パスワードはチャットに書かない／書かせない
+
+## 7. ティア表（tier/）
+
+- 身内用のティア表。お題を作る → アイテムはだれでも追加 → S〜D（固定）に並べて名前つきで保存 → みんなのを見られる＋「みんなの平均」（S=5〜D=1点の平均。置いてない人は数えない）
+- 自分の表は作った端末だけ直せる・消せる（キーが匿名uidなので1端末1つ）。アイテムは追加した人が消せる。お題は運営だけ消せる（ページ下の「運営」から暗証番号でログイン）
+- 画像で保存（canvasで描く。スマホは共有シート、無理なら長押し保存の画面）、リンクをコピー（`?t=お題&l=uid|avg`、LINE用に `openExternalBrowser=1` つき）
+- ソースは `dev/tier/`（`tier.css`, `tier.js`）。`python3 dev/tier/build.py` で `tier/index.html` を作る。予約サイトの `dev/build.py` とは別
+- ルールのテスト：`node dev/test/tier_rules_test.js`
+- 予約サイトの sw.js はルート全体にかかるが、ページ本体は「最新を優先」なのでティア表にも悪さはしない

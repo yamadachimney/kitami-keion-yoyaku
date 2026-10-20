@@ -1,0 +1,54 @@
+// ティア表のルールのテスト： node dev/test/tier_rules_test.js
+globalThis.__RULES=JSON.parse(require('fs').readFileSync(require('path').join(__dirname,'../../database.rules.json'),'utf8'));
+const PW='test-pass';
+globalThis.__USERS={'unei@kitami-keion.example':{pw:PW,uid:'ADMIN'}};
+require('./rtdb-mock.js');
+const mk=globalThis.__mkApp;
+let pass=0,fail=0;
+const ok=(c,m)=>{if(c){pass++}else{fail++;console.log('FAIL',m)}};
+async function as(name,uid){const app=mk(name);const a=app.auth();
+  if(uid==='ADMIN')await a.signInWithEmailAndPassword('unei@kitami-keion.example',PW);
+  else {globalThis.__ANON_UID=uid;await a.signInAnonymously();}
+  return app.database();}
+const tryW=async(p)=>{try{await p;return true}catch(e){return false}};
+const TS={'.sv':'timestamp'};
+const topic=(uid,o)=>Object.assign({name:'学食情弱ティア表',by:'なおや',uid,createdAt:TS},o);
+const item=(uid,t)=>({t,uid,createdAt:TS});
+const list=(uid,r,o)=>Object.assign({who:'なおや',uid,r,createdAt:TS,updatedAt:TS},o);
+(async()=>{
+  const adm=await as('adm','ADMIN'), A=await as('a','uA'), B=await as('b','uB');
+  const u=(db,o)=>tryW(db.ref().update(o));
+  ok(!await u(A,{'tierItems/t1/i0':item('uA','麺類')}),'cannot add item to missing topic');
+  ok(!await u(A,{'tierLists/t1/uA':list('uA',{})}),'cannot add list to missing topic');
+  ok(await u(A,{'tierTopics/t1':topic('uA')}),'A creates topic');
+  ok(!await u(B,{'tierTopics/t1':topic('uB',{name:'乗っ取り'})}),'B cannot overwrite topic');
+  ok(!await u(A,{'tierTopics/t1':topic('uA',{name:'変更'})}),'even owner cannot edit topic');
+  ok(!await u(A,{'tierTopics/t1':null}),'owner cannot delete topic');
+  ok(!await u(B,{'tierTopics/t2':topic('uA')}),'cannot create topic as someone else');
+  ok(!await u(A,{'tierTopics/t3':topic('uA',{name:''})}),'empty topic name rejected');
+  ok(!await u(A,{'tierTopics/t4':topic('uA',{name:'あ'.repeat(31)})}),'too long topic name rejected');
+  ok(!await u(A,{'tierTopics/t5':Object.assign(topic('uA'),{x:1})}),'extra topic field rejected');
+  ok(await u(A,{'tierItems/t1/i1':item('uA','チキン竜田丼'),'tierItems/t1/i2':item('uA','麺類')}),'A adds items');
+  ok(await u(B,{'tierItems/t1/i3':item('uB','ハンバーグ丼')}),'B adds item to A topic');
+  ok(!await u(B,{'tierItems/t1/i1':null}),'B cannot delete A item');
+  ok(!await u(B,{'tierItems/t1/i1':item('uB','書き換え')}),'B cannot edit A item');
+  ok(!await u(A,{'tierItems/t1/i9':item('uB','なりすまし')}),'cannot add item as someone else');
+  ok(!await u(A,{'tierItems/t1/i8':item('uA','')}),'empty item rejected');
+  ok(await u(B,{'tierItems/t1/i3':null}),'B deletes own item');
+  ok(!await u(A,{'tierItems/t1':null}),'member cannot wipe all items');
+  ok(await u(A,{'tierLists/t1/uA':list('uA',{i1:'S',i2:'S'})}),'A saves own list');
+  ok(await u(A,{'tierLists/t1/uA':list('uA',{i1:'A'})}),'A edits own list');
+  ok(!await u(B,{'tierLists/t1/uA':list('uA',{i1:'D'})}),'B cannot edit A list');
+  ok(!await u(B,{'tierLists/t1/uA':null}),'B cannot delete A list');
+  ok(!await u(B,{'tierLists/t1/uA2':list('uB',{})}),'B cannot write under another key');
+  ok(!await u(B,{'tierLists/t1/uB':list('uB',{i1:'X'})}),'bad tier letter rejected');
+  ok(!await u(B,{'tierLists/t1/uB':list('uB',{},{who:''})}),'empty name rejected');
+  ok(!await u(B,{'tierLists/t1/uB':Object.assign(list('uB',{}),{x:1})}),'extra list field rejected');
+  ok(await u(B,{'tierLists/t1/uB':list('uB',{i1:'B'},{who:'ゆうと'})}),'B saves own list');
+  ok(await u(B,{'tierLists/t1/uB':null}),'B deletes own list');
+  ok(await u(adm,{'tierItems/t1/i2':null}),'admin deletes any item');
+  ok(await u(adm,{'tierLists/t1/uA':null}),'admin deletes any list');
+  ok(await u(adm,{'tierTopics/t1':null,'tierItems/t1':null,'tierLists/t1':null}),'admin deletes whole topic');
+  ok(!globalThis.__store.root.tierTopics||!globalThis.__store.root.tierTopics.t1,'topic gone');
+  console.log('tier rules tests: '+pass+' passed, '+fail+' failed');process.exit(fail?1:0);
+})();

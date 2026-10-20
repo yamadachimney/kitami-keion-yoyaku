@@ -162,6 +162,80 @@
           ".validate": "newData.val() === 'new' || newData.val() === 'seen' || newData.val() === 'ordered' || newData.val() === 'done'"
         }
       }
+    },
+    "tierTopics": {
+      ".read": true,
+      "$t": {
+        ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!data.exists() && newData.child('uid').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['name','by','uid','createdAt'])",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+        },
+        "by": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12"
+        },
+        "uid": {
+          ".validate": "newData.val() === auth.uid || auth.token.email === 'unei@kitami-keion.example'"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "tierItems": {
+      ".read": true,
+      "$t": {
+        ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'",
+        "$i": {
+          ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!data.exists() && newData.child('uid').val() === auth.uid && root.child('tierTopics/'+$t).exists()) || (data.exists() && !newData.exists() && data.child('uid').val() === auth.uid))",
+          ".validate": "newData.hasChildren(['t','uid','createdAt'])",
+          "t": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+          },
+          "uid": {
+            ".validate": "newData.isString()"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    },
+    "tierLists": {
+      ".read": true,
+      "$t": {
+        ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'",
+        "$l": {
+          ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || ($l === auth.uid && (!newData.exists() || root.child('tierTopics/'+$t).exists())))",
+          ".validate": "newData.hasChildren(['who','uid','createdAt','updatedAt']) && newData.child('uid').val() === $l",
+          "who": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 12"
+          },
+          "uid": {
+            ".validate": "newData.isString()"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "r": {
+            "$i": {
+              ".validate": "newData.val() === 'S' || newData.val() === 'A' || newData.val() === 'B' || newData.val() === 'C' || newData.val() === 'D'"
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
     }
   }
 }
