@@ -166,7 +166,7 @@
     "tierTopics": {
       ".read": true,
       "$t": {
-        ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!data.exists() && newData.child('uid').val() === auth.uid))",
+        ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!data.exists() && newData.child('uid').val() === auth.uid) || (data.exists() && !newData.exists()))",
         ".validate": "newData.hasChildren(['name','by','uid','createdAt'])",
         "name": {
           ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
@@ -188,9 +188,9 @@
     "tierItems": {
       ".read": true,
       "$t": {
-        ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'",
+        ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!newData.exists() && !newData.parent().parent().child('tierTopics/'+$t).exists()))",
         "$i": {
-          ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!data.exists() && newData.child('uid').val() === auth.uid && root.child('tierTopics/'+$t).exists()) || (data.exists() && !newData.exists() && data.child('uid').val() === auth.uid))",
+          ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!data.exists() && newData.child('uid').val() === auth.uid && root.child('tierTopics/'+$t).exists()) || (data.exists() && !newData.exists()))",
           ".validate": "newData.hasChildren(['t','uid','createdAt'])",
           "t": {
             ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
@@ -210,7 +210,7 @@
     "tierLists": {
       ".read": true,
       "$t": {
-        ".write": "auth != null && auth.token.email === 'unei@kitami-keion.example'",
+        ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || (!newData.exists() && !newData.parent().parent().child('tierTopics/'+$t).exists()))",
         "$l": {
           ".write": "auth != null && (auth.token.email === 'unei@kitami-keion.example' || ($l === auth.uid && (!newData.exists() || root.child('tierTopics/'+$t).exists())))",
           ".validate": "newData.hasChildren(['who','uid','createdAt','updatedAt']) && newData.child('uid').val() === $l",

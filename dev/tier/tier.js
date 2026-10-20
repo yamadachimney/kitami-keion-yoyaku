@@ -3,7 +3,7 @@
      tierTopics/<tid>        {name, by, uid, createdAt}          お題
      tierItems/<tid>/<iid>   {t, uid, createdAt}                 お題のアイテム（だれでも追加）
      tierLists/<tid>/<uid>   {who, uid, r:{<iid>:'S'..'D'}, createdAt, updatedAt}   1端末につき1つ
-   直せるのは作った端末だけ。運営アカウントは全部消せる */
+   ティア表を直す・消すのは作った端末だけ。お題とアイテムはだれでも消せる。運営アカウントは全部消せる */
 const TIERS=['S','A','B','C','D'], PT={S:5,A:4,B:3,C:2,D:1};
 const ADMIN_EMAIL=window.FB_ADMIN_EMAIL||'unei@kitami-keion.example';
 const S={uid:null,isAdmin:false,ready:false,fail:'',topics:{},items:{},lists:{}};
@@ -124,7 +124,7 @@ function render(){
       <div class="who"><b>${esc(l.who)}${l.id===S.uid?' <span class="badge">自分</span>':''}</b><small>${ago(l.at)}</small></div>
       <div class="sum">`+['S','A'].map(k=>{const n=itemsOf(V.tid).filter(it=>l.r[it.id]===k).map(it=>esc(it.t));return n.length?`<div><em>${k}</em>${n.join('・')}</div>`:''}).join('')+`</div></button>`).join('')+'</div>'
      :'<div class="hint">まだだれも作っていません。最初の1人になろう</div>')+
-    (S.isAdmin?`<div class="save"><button class="btn sm danger" data-del-topic="1">このお題を消す（運営）</button></div>`:'');
+    `<div class="save" style="margin-top:18px"><button class="btn sm danger" data-del-topic="1">このお題を消す</button></div>`;
   }
   else if(V.view==='list'||V.view==='avg'){
     const t=T()||{name:''},items=itemsOf(V.tid);let r,title,sub,sc,own=false;
@@ -151,9 +151,9 @@ function render(){
   }
   a.innerHTML=h;
 }
-function canDelItem(id){const it=(S.items[V.tid]||{})[id];return !!it&&(S.isAdmin||it.uid===S.uid)}
+function canDelItem(id){return !!(S.items[V.tid]||{})[id]}
 function adminHTML(){
-  if(S.isAdmin)return `<div class="admin">運営としてログイン中（お題・アイテム・ティア表を消せます）<button class="btn sm" id="logout">ログアウト</button></div>`;
+  if(S.isAdmin)return `<div class="admin">運営としてログイン中（だれのティア表でも消せます）<button class="btn sm" id="logout">ログアウト</button></div>`;
   return `<details class="admin"><summary>運営</summary><div class="save" style="margin-top:8px"><input id="pin" type="password" placeholder="運営の暗証番号" autocomplete="current-password"><button class="btn sm" id="login">ログイン</button></div></details>`;
 }
 
