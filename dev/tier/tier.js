@@ -24,8 +24,8 @@ function fbInit(){
   return true;
 }
 function listen(){
-  const n={tierTopics:'topics',tierItems:'items',tierLists:'lists'};let got=0;
-  Object.keys(n).forEach(p=>F.db.ref(p).on('value',sn=>{S[n[p]]=sn.val()||{};if(++got>=3)S.ready=true;render()},e=>{S.fail='読み込めませんでした（'+(e&&e.code||'')+'）';render()}));
+  const n={tierTopics:'topics',tierItems:'items',tierLists:'lists'},got=new Set();
+  Object.keys(n).forEach(p=>F.db.ref(p).on('value',sn=>{S[n[p]]=sn.val()||{};got.add(p);if(!S.ready&&got.size===3){S.ready=true;seedOnce()}render()},e=>{S.fail='読み込めませんでした（'+(e&&e.code||'')+'）';render()}));
 }
 async function boot(){
   if(!fbInit()){render();return}
@@ -45,6 +45,22 @@ function applyLocal(up){const n={tierTopics:'topics',tierItems:'items',tierLists
 async function save(up,okMsg,db){
   try{await (db||DB()).ref().update(up);applyLocal(up);if(okMsg)toast(okMsg);return true}
   catch(e){toast(/PERMISSION|permission/.test(e&&(e.code||e.message)||'')?'保存できませんでした（権限がありません）':'保存できませんでした。電波を確認してね');return false}
+}
+
+/* ---------- 見本「学食情弱ティア表」（?seed=gakushoku で開いた端末が作る。もうあれば何もしない） ---------- */
+async function seedOnce(){
+  if(new URLSearchParams(location.search).get('seed')!=='gakushoku')return;
+  const NAME='学食情弱ティア表',WHO='なおや';
+  const old=Object.entries(S.topics).find(([,v])=>v.name===NAME);
+  if(old){toast('もう入っています');return go({view:'topic',tid:old[0]})}
+  const rank={S:['チキン竜田丼','麺類'],A:['ハンバーグ丼'],C:['丼もの'],D:['ロースカツ','おかず類']};
+  const tid=F.db.ref('tierTopics').push().key,up={['tierTopics/'+tid]:{name:NAME,by:WHO,uid:S.uid,createdAt:TS()}},r={};
+  Object.entries(rank).forEach(([k,ns])=>ns.forEach(t=>{const iid=F.db.ref('tierItems/'+tid).push().key;up['tierItems/'+tid+'/'+iid]={t,uid:S.uid,createdAt:TS()};r[iid]=k}));
+  // お題 → アイテム → 表 の順に書く（アイテムと表はお題があることをルールで確認するため）
+  const step=pre=>Object.fromEntries(Object.entries(up).filter(([p])=>p.startsWith(pre)));
+  if(!await save(step('tierTopics/'),null,F.db)||!await save(step('tierItems/'),null,F.db))return;
+  if(!await save({['tierLists/'+tid+'/'+S.uid]:{who:WHO,uid:S.uid,r,createdAt:TS(),updatedAt:TS()}},'見本を入れました',F.db))return;
+  LS.set('tier_who',WHO);go({view:'topic',tid});
 }
 
 /* ---------- URL（?t=お題&l=だれの） ---------- */
