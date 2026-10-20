@@ -1,5 +1,5 @@
 /* 北見工大 軽音予約：アプリ化用（オフラインでも画面だけは開けるようにする） */
-const VERSION = 'v6';
+const VERSION = 'v7';
 const CORE = ['./', 'index.html', 'firebase-config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
