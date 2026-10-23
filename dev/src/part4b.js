@@ -55,7 +55,8 @@ function openAdd(day,idx,edit,draft){
     pv.replaceChildren();
     if(f.e<=f.s)return;
     const others=live().filter(o=>(!edit||o.id!==edit.id)&&o.day===f.day);
-    const near=others.filter(o=>o.s<f.e&&f.s<o.e).sort((a,b)=>a.s-b.s);
+    const me={day:f.day,s:f.s,e:f.e,status:isFlex()?'pending':'confirmed',ex:fl?exIn().join(','):''};
+    const near=others.filter(o=>o.s<f.e&&f.s<o.e&&(!fl||effOverlap(me,o))).sort((a,b)=>a.s-b.s);
     const row=o=>h('div',{class:'sub',text:'・'+whoText(o)+'　'+(o.status==='pending'?'希望 '+range(o)+'（'+durLabel(durOf(o))+'）':'確定 '+range(o))});
     let box;
     if(!fl){
