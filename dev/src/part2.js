@@ -56,8 +56,14 @@ function durLabel(n){const h=Math.floor(n/2);return (h?h+'時間':'')+(n%2?'30�
    その中でずらして全員入るなら被りとは扱わず、優先度順に仮配置する */
 
 /* 申し込む前のシミュレーション用（サーバーと同じ計算） */
+/* 授業のコマ（90分×5）。希望の時間帯の中で「授業がある＝行けない」コマを除外できる。exには30分コマの番号を入れる */
+const KOMA=[{n:'1・2限',t:'8:45–10:15',sl:[0,1,2]},{n:'3・4限',t:'10:30–12:00',sl:[3,4,5]},{n:'5・6限',t:'13:00–14:30',sl:[8,9,10]},{n:'7・8限',t:'14:45–16:15',sl:[11,12,13,14]},{n:'9・10限',t:'16:30–18:00',sl:[15,16,17]}];
+function exSet(r){if(!r||!r.ex)return null;const s=new Set(String(r.ex).split(',').filter(x=>x!=='').map(Number));return s.size?s:null}
+function exKoma(r){const s=exSet(r);if(!s)return [];return KOMA.filter(k=>k.sl.some(i=>s.has(i)&&i>=r.s&&i<r.e))}
+function exText(r){const k=exKoma(r);return k.length?'授業で除外：'+k.map(x=>x.n).join('・'):''}
+function canFit(r){const ex=exSet(r);for(let t=r.s;t+r.dur<=r.e;t++){let ok=true;for(let i=t;i<t+r.dur;i++)if(ex&&ex.has(i)){ok=false;break}if(ok)return true}return false}
 function feasible(items,occ){
-  const list=items.slice().sort((a,b)=>((a.e-a.s-a.dur)-(b.e-b.s-b.dur))||a.s-b.s);
+  const list=items.map(x=>Object.assign({},x,{_ex:exSet(x)})).sort((a,b)=>((a.e-a.s-a.dur-(a._ex?a._ex.size:0))-(b.e-b.s-b.dur-(b._ex?b._ex.size:0)))||a.s-b.s);
   const used=occ.slice(),res=new Map();let nodes=0;
   function go(k){
     if(k===list.length)return true;
@@ -65,7 +71,7 @@ function feasible(items,occ){
     const r=list[k];
     for(let t=r.s;t+r.dur<=r.e;t++){
       let ok=true;
-      for(let i=t;i<t+r.dur;i++)if(used[i]){ok=false;break}
+      for(let i=t;i<t+r.dur;i++)if(used[i]||(r._ex&&r._ex.has(i))){ok=false;break}
       if(!ok)continue;
       for(let i=t;i<t+r.dur;i++)used[i]=true;
       res.set(r.id,t);

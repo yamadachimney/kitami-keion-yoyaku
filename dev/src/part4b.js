@@ -16,7 +16,7 @@ function openAdd(day,idx,edit,draft){
   const heading=edit?'内容を変更':(free?'予約する':'希望を出す');
   let f;
   if(draft)f=Object.assign({},draft.f);
-  else if(edit)f={day:edit.day,s:edit.s,e:edit.e,dur:durOf(edit)};
+  else if(edit)f={day:edit.day,s:edit.s,e:edit.e,dur:durOf(edit),ex:exSet(edit)?[...exSet(edit)]:[]};
   else if(!free){
     const e=Math.min(SLOTS,idx+8),dur=Math.min(4,max);
     f={day:day,s:Math.max(0,Math.min(idx,e-dur)),e:e,dur:dur};
@@ -36,6 +36,20 @@ function openAdd(day,idx,edit,draft){
   const durLb=h('label',{for:'fDur'});
   const durField=h('div',{class:'field'},[durLb,selDur]);
   const pv=h('div',{'aria-live':'polite'});
+  if(!f.ex)f.ex=[];
+  /* 授業があるコマを除外（希望のときだけ） */
+  const exBox=h('div',{class:'exbox'});
+  const exField=h('div',{class:'field'},[h('span',{class:'lb',text:'授業がある時間（除外・いくつでも）'}),exBox,
+    h('div',{class:'rank',text:'押したコマには練習が入りません。授業をはさんで、1つの希望で出せます。'})]);
+  const exIn=()=>{const w=new Set();for(let i=f.s;i<f.e;i++)w.add(i);return f.ex.filter(i=>w.has(i))};
+  function renderEx(){
+    exBox.replaceChildren();
+    const ks=KOMA.filter(k=>k.sl.some(i=>i>=f.s&&i<f.e));
+    if(!ks.length){exBox.append(h('span',{class:'rank',text:'この時間帯には授業のコマがありません'}));return}
+    ks.forEach(k=>{const on=k.sl.filter(i=>i>=f.s&&i<f.e).every(i=>f.ex.indexOf(i)>=0);
+      exBox.append(h('button',{type:'button',class:'pc kz','aria-pressed':String(on),onclick:()=>{
+        if(on)f.ex=f.ex.filter(i=>k.sl.indexOf(i)<0);else f.ex=f.ex.concat(k.sl.filter(i=>f.ex.indexOf(i)<0));refresh()}},[h('b',{text:k.n}),h('small',{text:k.t})]))});
+  }
   /* 出す前に、今出ている希望・予約と比べて「入れそうか」を表示 */
   function renderPreview(fl){
     pv.replaceChildren();
@@ -50,7 +64,8 @@ function openAdd(day,idx,edit,draft){
       pv.append(box);return;
     }
     const kv=kindEl?kindEl.value:'band';
-    const cand={id:'__new',kind:kv,day:f.day,s:f.s,e:f.e,dur:f.dur,status:'pending',createdAt:edit?(edit.createdAt||0):Date.now()};
+    const cand={id:'__new',kind:kv,day:f.day,s:f.s,e:f.e,dur:f.dur,ex:exIn().join(','),status:'pending',createdAt:edit?(edit.createdAt||0):Date.now()};
+    if(!canFit(cand)){pv.append(h('div',{class:'clashbox'},[h('div',{class:'ttl',text:'授業を除くと、'+durLabel(f.dur)+'続けて取れる時間がありません'}),h('div',{class:'hint',text:'時間帯を広げるか、練習時間を短くしてください。'})]));return}
     const before=simulate(others);
     const after=simulate(others.concat([cand]));
     const t=after.place.get('__new');
@@ -79,7 +94,7 @@ function openAdd(day,idx,edit,draft){
     timeLb.textContent=fl?'練習できる時間帯':'時間';
     lbS.textContent=fl?'から':'開始';lbE.textContent=fl?'まで':'終了';
     durLb.textContent='練習時間（上限 '+durLabel(max)+'）';
-    durField.hidden=!fl;
+    durField.hidden=!fl;exField.hidden=!fl;if(fl)renderEx();
     renderPreview(fl);
   }
   selDay.onchange=()=>{f.day=+selDay.value;refresh()};
@@ -116,6 +131,7 @@ function openAdd(day,idx,edit,draft){
       dur=f.dur;
       if(dur>max){err.textContent='1回の上限は '+durLabel(max)+' です';return}
       if(f.e-f.s<dur){err.textContent='時間帯が練習時間（'+durLabel(dur)+'）より短いです。時間帯を広げてください';return}
+      if(!canFit({s:f.s,e:f.e,dur:dur,ex:exIn().join(',')})){err.textContent='授業を除くと、'+durLabel(dur)+'続けて取れる時間がありません';return}
     }else{
       if(!fx&&dur>max){err.textContent='1回の上限は '+durLabel(max)+' です。時間を短くしてください';return}
       const cand={day:f.day,s:f.s,e:f.e};
@@ -123,7 +139,7 @@ function openAdd(day,idx,edit,draft){
       if((free||wasConfirmed)&&live().some(o=>(!edit||o.id!==edit.id)&&overlap(o,cand))){err.textContent='その時間にはすでに予約があります。時間をずらしてください';return}
     }
     go.disabled=true;
-    const body={band:bn,rep:rn,kind:kind.value,day:f.day,s:f.s,e:f.e,dur:dur};
+    const body={band:bn,rep:rn,kind:kind.value,day:f.day,s:f.s,e:f.e,dur:dur,ex:fl?exIn().join(','):''};
     lsSet('kitami-band',bn);lsSet('kitami-rep',rn);lsSet('kitami-kind',kind.value);
     /* 先に閉じて画面に反映。保存は裏で続ける */
     closeSheet();
@@ -152,6 +168,7 @@ function openAdd(day,idx,edit,draft){
       h('div',{class:'field'},[lbE,selE])
     ])]),
     durField,
+    exField,
     pv,
     h('div',{class:'two'},[
       h('div',{class:'field'},[h('label',{for:'fBand',text:'バンド名・予約名'}),band]),

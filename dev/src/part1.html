@@ -141,6 +141,11 @@ select,input[type=text]{border:1px solid var(--line);background:var(--surface);b
 .dayhd:first-child{border-top:0}.dayhd b{font-size:14px}.dayhd span{font-size:12px;color:var(--muted)}
 .dayhd.sat b{color:var(--accent)}.dayhd.sun b{color:var(--bad)}
 .dayhd+.li{border-top:0}
+.exbox{display:flex;flex-wrap:wrap;gap:6px}
+.pc.kz{display:flex;flex-direction:column;align-items:center;line-height:1.2;border-radius:10px;padding:5px 10px}
+.pc.kz small{font-weight:500;font-size:11px;opacity:.85}
+.exz{position:absolute;left:0;right:0;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 45%,transparent) 0 4px,transparent 4px 8px);display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0}
+.exz span{font-size:11px;font-weight:700;color:var(--ink);background:var(--surface);border-radius:4px;padding:0 4px}
 .sopt{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line2);padding-top:10px}
 .sugg h2+.sopt{border-top:0;padding-top:0}
 .shead{display:flex;gap:10px;align-items:baseline}.shead b{font-size:15px}

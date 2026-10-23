@@ -83,6 +83,8 @@ function block(r,lane,n){
     if(r.e-r.s>=2)kids.push(h('span',{class:'t',text:(r.status==='pending'?'希望 ':'')+range(r)+(flex?'（'+durLabel(durOf(r))+'）':'')}));
     if(r.e-r.s>=3&&r.band&&r.rep)kids.push(h('span',{class:'t',text:r.rep}));
   }
+  const exs=r.status==='pending'?exSet(r):null;
+  if(exs){let i=r.s;while(i<r.e){if(exs.has(i)){let j=i;while(j<r.e&&exs.has(j))j++;kids.unshift(h('div',{class:'exz',style:'top:'+((i-r.s)*H)+'px;height:'+((j-i)*H)+'px'},[(j-i)>=2?h('span',{text:'授業'}):null]));i=j}else i++}}
   const tg=r.status==='pending'?(conflicts(r)?['bad','被り']:clashes(r).length?['ok','調整']:null):null;
   if(tg)kids.push(h('span',{class:'tag '+tg[0],text:tg[1]}));
   return h('button',{class:cls,style:st,'aria-label':nm(r)+' '+(r.rep||'')+' '+DAYS[r.day]+'曜 '+range(r),onclick:e=>{e.stopPropagation();openDetail(r.id)}},kids);
@@ -113,7 +115,7 @@ function gridView(){
     body.append(col);
   }
   const legend=h('div',{class:'legend'},[h('span',null,['色は、となり合う予約が見分けやすいよう自動で付きます'])]);
-  if(phase()==='request')legend.append(h('span',null,[h('i',{class:'pend'}),'点線＝希望の時間帯（確定前・枠は押さえません）']),h('span',null,[h('i',{style:'background:var(--muted)'}),'色の帯＝調整後の仮の配置']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--bad) 0 3px,transparent 3px 6px);border:1px solid var(--bad)'}),'赤の斜線＝被っていて入りきらない']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--drum) 0 3px,transparent 3px 6px);border:1px solid var(--drum)'}),'黄の斜線＝時間帯は被るが調整で収まる']));
+  if(phase()==='request')legend.append(h('span',null,[h('i',{class:'pend'}),'点線＝希望の時間帯（確定前・枠は押さえません）']),h('span',null,[h('i',{style:'background:var(--muted)'}),'色の帯＝調整後の仮の配置']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--bad) 0 3px,transparent 3px 6px);border:1px solid var(--bad)'}),'赤の斜線＝被っていて入りきらない']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--drum) 0 3px,transparent 3px 6px);border:1px solid var(--drum)'}),'黄の斜線＝時間帯は被るが調整で収まる']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--muted) 0 3px,transparent 3px 6px);border:1px solid var(--muted)'}),'灰色の斜線＝授業で除外（ここには入りません）']));
   legend.append(h('span',null,['黒い枠＝自分の分']));
   const wrap=h('div',{class:'grid-wrap',id:'gridWrap'},[head,body]);
   let tog=null;

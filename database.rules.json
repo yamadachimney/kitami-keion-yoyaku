@@ -63,6 +63,9 @@
             },
             "$other": {
               ".validate": false
+            },
+            "ex": {
+              ".validate": "newData.isString() && newData.val().length <= 80"
             }
           }
         },

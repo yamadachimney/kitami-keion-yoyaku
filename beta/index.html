@@ -164,6 +164,11 @@ select,input[type=text]{border:1px solid var(--line);background:var(--surface);b
 .dayhd:first-child{border-top:0}.dayhd b{font-size:14px}.dayhd span{font-size:12px;color:var(--muted)}
 .dayhd.sat b{color:var(--accent)}.dayhd.sun b{color:var(--bad)}
 .dayhd+.li{border-top:0}
+.exbox{display:flex;flex-wrap:wrap;gap:6px}
+.pc.kz{display:flex;flex-direction:column;align-items:center;line-height:1.2;border-radius:10px;padding:5px 10px}
+.pc.kz small{font-weight:500;font-size:11px;opacity:.85}
+.exz{position:absolute;left:0;right:0;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 45%,transparent) 0 4px,transparent 4px 8px);display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0}
+.exz span{font-size:11px;font-weight:700;color:var(--ink);background:var(--surface);border-radius:4px;padding:0 4px}
 .sopt{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line2);padding-top:10px}
 .sugg h2+.sopt{border-top:0;padding-top:0}
 .shead{display:flex;gap:10px;align-items:baseline}.shead b{font-size:15px}
@@ -403,8 +408,14 @@ function durLabel(n){const h=Math.floor(n/2);return (h?h+'時間':'')+(n%2?'30�
    その中でずらして全員入るなら被りとは扱わず、優先度順に仮配置する */
 
 /* 申し込む前のシミュレーション用（サーバーと同じ計算） */
+/* 授業のコマ（90分×5）。希望の時間帯の中で「授業がある＝行けない」コマを除外できる。exには30分コマの番号を入れる */
+const KOMA=[{n:'1・2限',t:'8:45–10:15',sl:[0,1,2]},{n:'3・4限',t:'10:30–12:00',sl:[3,4,5]},{n:'5・6限',t:'13:00–14:30',sl:[8,9,10]},{n:'7・8限',t:'14:45–16:15',sl:[11,12,13,14]},{n:'9・10限',t:'16:30–18:00',sl:[15,16,17]}];
+function exSet(r){if(!r||!r.ex)return null;const s=new Set(String(r.ex).split(',').filter(x=>x!=='').map(Number));return s.size?s:null}
+function exKoma(r){const s=exSet(r);if(!s)return [];return KOMA.filter(k=>k.sl.some(i=>s.has(i)&&i>=r.s&&i<r.e))}
+function exText(r){const k=exKoma(r);return k.length?'授業で除外：'+k.map(x=>x.n).join('・'):''}
+function canFit(r){const ex=exSet(r);for(let t=r.s;t+r.dur<=r.e;t++){let ok=true;for(let i=t;i<t+r.dur;i++)if(ex&&ex.has(i)){ok=false;break}if(ok)return true}return false}
 function feasible(items,occ){
-  const list=items.slice().sort((a,b)=>((a.e-a.s-a.dur)-(b.e-b.s-b.dur))||a.s-b.s);
+  const list=items.map(x=>Object.assign({},x,{_ex:exSet(x)})).sort((a,b)=>((a.e-a.s-a.dur-(a._ex?a._ex.size:0))-(b.e-b.s-b.dur-(b._ex?b._ex.size:0)))||a.s-b.s);
   const used=occ.slice(),res=new Map();let nodes=0;
   function go(k){
     if(k===list.length)return true;
@@ -412,7 +423,7 @@ function feasible(items,occ){
     const r=list[k];
     for(let t=r.s;t+r.dur<=r.e;t++){
       let ok=true;
-      for(let i=t;i<t+r.dur;i++)if(used[i]){ok=false;break}
+      for(let i=t;i<t+r.dur;i++)if(used[i]||(r._ex&&r._ex.has(i))){ok=false;break}
       if(!ok)continue;
       for(let i=t;i<t+r.dur;i++)used[i]=true;
       res.set(r.id,t);
@@ -486,7 +497,7 @@ function fbErr(e,ctx){
 function slotKeys(r){const a=[];for(let i=r.s;i<r.e;i++)a.push(r.day+'_'+i);return a}
 function clean(r){
   const o={uid:r.uid||S.uid,band:r.band||'',rep:r.rep,kind:r.kind,day:r.day,s:r.s,e:r.e,dur:r.dur||(r.e-r.s),status:r.status,createdAt:r.createdAt||Date.now()};
-  if(r.ws!=null)o.ws=r.ws;if(r.we!=null)o.we=r.we;
+  if(r.ws!=null)o.ws=r.ws;if(r.we!=null)o.we=r.we;if(r.ex&&r.status==='pending')o.ex=String(r.ex);
   return o;
 }
 
@@ -557,6 +568,7 @@ async function dbAdd(o){
   const status=(free||(o.fixed&&S.isAdmin))?'confirmed':'pending';
   const r={uid:S.uid,band:(o.band||'').trim(),rep:(o.rep||'').trim(),kind:o.kind,day:o.day,s:o.s,e:o.e,
     dur:status==='confirmed'?o.e-o.s:o.dur,status:status,createdAt:firebase.database.ServerValue.TIMESTAMP};
+  if(status==='pending'&&o.ex)r.ex=String(o.ex);
   const id=wref(ws).child('reqs').push().key;
   const up={};up['reqs/'+id]=r;
   if(status==='confirmed'){
@@ -600,7 +612,7 @@ async function dbConfirmAll(ws){
     if(t==null){ng++;up['reqs/'+r.id+'/status']='rejected'}
     else{
       ok++;const d=durOf(r);
-      const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d});
+      const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d,ex:''});
       up['reqs/'+r.id]=clean(nx);
       slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});
     }
@@ -744,6 +756,8 @@ function block(r,lane,n){
     if(r.e-r.s>=2)kids.push(h('span',{class:'t',text:(r.status==='pending'?'希望 ':'')+range(r)+(flex?'（'+durLabel(durOf(r))+'）':'')}));
     if(r.e-r.s>=3&&r.band&&r.rep)kids.push(h('span',{class:'t',text:r.rep}));
   }
+  const exs=r.status==='pending'?exSet(r):null;
+  if(exs){let i=r.s;while(i<r.e){if(exs.has(i)){let j=i;while(j<r.e&&exs.has(j))j++;kids.unshift(h('div',{class:'exz',style:'top:'+((i-r.s)*H)+'px;height:'+((j-i)*H)+'px'},[(j-i)>=2?h('span',{text:'授業'}):null]));i=j}else i++}}
   const tg=r.status==='pending'?(conflicts(r)?['bad','被り']:clashes(r).length?['ok','調整']:null):null;
   if(tg)kids.push(h('span',{class:'tag '+tg[0],text:tg[1]}));
   return h('button',{class:cls,style:st,'aria-label':nm(r)+' '+(r.rep||'')+' '+DAYS[r.day]+'曜 '+range(r),onclick:e=>{e.stopPropagation();openDetail(r.id)}},kids);
@@ -774,7 +788,7 @@ function gridView(){
     body.append(col);
   }
   const legend=h('div',{class:'legend'},[h('span',null,['色は、となり合う予約が見分けやすいよう自動で付きます'])]);
-  if(phase()==='request')legend.append(h('span',null,[h('i',{class:'pend'}),'点線＝希望の時間帯（確定前・枠は押さえません）']),h('span',null,[h('i',{style:'background:var(--muted)'}),'色の帯＝調整後の仮の配置']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--bad) 0 3px,transparent 3px 6px);border:1px solid var(--bad)'}),'赤の斜線＝被っていて入りきらない']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--drum) 0 3px,transparent 3px 6px);border:1px solid var(--drum)'}),'黄の斜線＝時間帯は被るが調整で収まる']));
+  if(phase()==='request')legend.append(h('span',null,[h('i',{class:'pend'}),'点線＝希望の時間帯（確定前・枠は押さえません）']),h('span',null,[h('i',{style:'background:var(--muted)'}),'色の帯＝調整後の仮の配置']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--bad) 0 3px,transparent 3px 6px);border:1px solid var(--bad)'}),'赤の斜線＝被っていて入りきらない']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--drum) 0 3px,transparent 3px 6px);border:1px solid var(--drum)'}),'黄の斜線＝時間帯は被るが調整で収まる']),h('span',null,[h('i',{style:'background:repeating-linear-gradient(135deg,var(--muted) 0 3px,transparent 3px 6px);border:1px solid var(--muted)'}),'灰色の斜線＝授業で除外（ここには入りません）']));
   legend.append(h('span',null,['黒い枠＝自分の分']));
   const wrap=h('div',{class:'grid-wrap',id:'gridWrap'},[head,body]);
   let tog=null;
@@ -926,7 +940,7 @@ function listView(){
       h('div',{class:'dot'}),
       h('div',{style:'min-width:0'},[
         h('div',{class:'nm',text:nm(r)}),
-        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+durOf(r)):'')})
+        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&exText(r)?'　'+exText(r):'')+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+durOf(r)):'')})
       ]),
       h('div',{class:'acts'},[h('span',{class:'chip '+r.status,text:ST[r.status]}),
         r.status==='pending'&&conflicts(r)?h('span',{class:'chip rejected',text:'被り'}):(r.status==='pending'&&clashes(r).length?h('span',{class:'chip pending',text:'調整OK'}):null)]),
@@ -1193,7 +1207,7 @@ function openAdd(day,idx,edit,draft){
   const heading=edit?'内容を変更':(free?'予約する':'希望を出す');
   let f;
   if(draft)f=Object.assign({},draft.f);
-  else if(edit)f={day:edit.day,s:edit.s,e:edit.e,dur:durOf(edit)};
+  else if(edit)f={day:edit.day,s:edit.s,e:edit.e,dur:durOf(edit),ex:exSet(edit)?[...exSet(edit)]:[]};
   else if(!free){
     const e=Math.min(SLOTS,idx+8),dur=Math.min(4,max);
     f={day:day,s:Math.max(0,Math.min(idx,e-dur)),e:e,dur:dur};
@@ -1213,6 +1227,20 @@ function openAdd(day,idx,edit,draft){
   const durLb=h('label',{for:'fDur'});
   const durField=h('div',{class:'field'},[durLb,selDur]);
   const pv=h('div',{'aria-live':'polite'});
+  if(!f.ex)f.ex=[];
+  /* 授業があるコマを除外（希望のときだけ） */
+  const exBox=h('div',{class:'exbox'});
+  const exField=h('div',{class:'field'},[h('span',{class:'lb',text:'授業がある時間（除外・いくつでも）'}),exBox,
+    h('div',{class:'rank',text:'押したコマには練習が入りません。授業をはさんで、1つの希望で出せます。'})]);
+  const exIn=()=>{const w=new Set();for(let i=f.s;i<f.e;i++)w.add(i);return f.ex.filter(i=>w.has(i))};
+  function renderEx(){
+    exBox.replaceChildren();
+    const ks=KOMA.filter(k=>k.sl.some(i=>i>=f.s&&i<f.e));
+    if(!ks.length){exBox.append(h('span',{class:'rank',text:'この時間帯には授業のコマがありません'}));return}
+    ks.forEach(k=>{const on=k.sl.filter(i=>i>=f.s&&i<f.e).every(i=>f.ex.indexOf(i)>=0);
+      exBox.append(h('button',{type:'button',class:'pc kz','aria-pressed':String(on),onclick:()=>{
+        if(on)f.ex=f.ex.filter(i=>k.sl.indexOf(i)<0);else f.ex=f.ex.concat(k.sl.filter(i=>f.ex.indexOf(i)<0));refresh()}},[h('b',{text:k.n}),h('small',{text:k.t})]))});
+  }
   /* 出す前に、今出ている希望・予約と比べて「入れそうか」を表示 */
   function renderPreview(fl){
     pv.replaceChildren();
@@ -1227,7 +1255,8 @@ function openAdd(day,idx,edit,draft){
       pv.append(box);return;
     }
     const kv=kindEl?kindEl.value:'band';
-    const cand={id:'__new',kind:kv,day:f.day,s:f.s,e:f.e,dur:f.dur,status:'pending',createdAt:edit?(edit.createdAt||0):Date.now()};
+    const cand={id:'__new',kind:kv,day:f.day,s:f.s,e:f.e,dur:f.dur,ex:exIn().join(','),status:'pending',createdAt:edit?(edit.createdAt||0):Date.now()};
+    if(!canFit(cand)){pv.append(h('div',{class:'clashbox'},[h('div',{class:'ttl',text:'授業を除くと、'+durLabel(f.dur)+'続けて取れる時間がありません'}),h('div',{class:'hint',text:'時間帯を広げるか、練習時間を短くしてください。'})]));return}
     const before=simulate(others);
     const after=simulate(others.concat([cand]));
     const t=after.place.get('__new');
@@ -1256,7 +1285,7 @@ function openAdd(day,idx,edit,draft){
     timeLb.textContent=fl?'練習できる時間帯':'時間';
     lbS.textContent=fl?'から':'開始';lbE.textContent=fl?'まで':'終了';
     durLb.textContent='練習時間（上限 '+durLabel(max)+'）';
-    durField.hidden=!fl;
+    durField.hidden=!fl;exField.hidden=!fl;if(fl)renderEx();
     renderPreview(fl);
   }
   selDay.onchange=()=>{f.day=+selDay.value;refresh()};
@@ -1293,6 +1322,7 @@ function openAdd(day,idx,edit,draft){
       dur=f.dur;
       if(dur>max){err.textContent='1回の上限は '+durLabel(max)+' です';return}
       if(f.e-f.s<dur){err.textContent='時間帯が練習時間（'+durLabel(dur)+'）より短いです。時間帯を広げてください';return}
+      if(!canFit({s:f.s,e:f.e,dur:dur,ex:exIn().join(',')})){err.textContent='授業を除くと、'+durLabel(dur)+'続けて取れる時間がありません';return}
     }else{
       if(!fx&&dur>max){err.textContent='1回の上限は '+durLabel(max)+' です。時間を短くしてください';return}
       const cand={day:f.day,s:f.s,e:f.e};
@@ -1300,7 +1330,7 @@ function openAdd(day,idx,edit,draft){
       if((free||wasConfirmed)&&live().some(o=>(!edit||o.id!==edit.id)&&overlap(o,cand))){err.textContent='その時間にはすでに予約があります。時間をずらしてください';return}
     }
     go.disabled=true;
-    const body={band:bn,rep:rn,kind:kind.value,day:f.day,s:f.s,e:f.e,dur:dur};
+    const body={band:bn,rep:rn,kind:kind.value,day:f.day,s:f.s,e:f.e,dur:dur,ex:fl?exIn().join(','):''};
     lsSet('kitami-band',bn);lsSet('kitami-rep',rn);lsSet('kitami-kind',kind.value);
     /* 先に閉じて画面に反映。保存は裏で続ける */
     closeSheet();
@@ -1329,6 +1359,7 @@ function openAdd(day,idx,edit,draft){
       h('div',{class:'field'},[lbE,selE])
     ])]),
     durField,
+    exField,
     pv,
     h('div',{class:'two'},[
       h('div',{class:'field'},[h('label',{for:'fBand',text:'バンド名・予約名'}),band]),
@@ -2116,7 +2147,7 @@ function openDetail(id){
   const kids=[
     h('div',{class:'row',style:'justify-content:space-between;flex-wrap:nowrap'},[h('h3',{style:'overflow-wrap:anywhere',text:nm(r)}),h('span',{class:'chip '+r.status,text:ST[r.status]})]),
     h('div',{class:'big',text:DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+range(r)}),
-    h('div',{class:'rank',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+KINDS[r.kind]+(r.status==='pending'?'　希望の時間帯・練習 '+durLabel(durOf(r)):'')})
+    h('div',{class:'rank',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+KINDS[r.kind]+(r.status==='pending'?'　希望の時間帯・練習 '+durLabel(durOf(r)):'')+(r.status==='pending'&&exText(r)?'　'+exText(r):'')})
   ];
   const t0=S.plan.place.get(r.id);
   if(r.status==='pending'&&t0!=null)kids.push(h('div',{class:'rank',text:'仮の配置：'+tm(t0)+'–'+tm(t0+durOf(r))+'（部会で確定します）'}));

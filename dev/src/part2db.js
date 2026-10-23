@@ -32,7 +32,7 @@ function fbErr(e,ctx){
 function slotKeys(r){const a=[];for(let i=r.s;i<r.e;i++)a.push(r.day+'_'+i);return a}
 function clean(r){
   const o={uid:r.uid||S.uid,band:r.band||'',rep:r.rep,kind:r.kind,day:r.day,s:r.s,e:r.e,dur:r.dur||(r.e-r.s),status:r.status,createdAt:r.createdAt||Date.now()};
-  if(r.ws!=null)o.ws=r.ws;if(r.we!=null)o.we=r.we;
+  if(r.ws!=null)o.ws=r.ws;if(r.we!=null)o.we=r.we;if(r.ex&&r.status==='pending')o.ex=String(r.ex);
   return o;
 }
 
@@ -103,6 +103,7 @@ async function dbAdd(o){
   const status=(free||(o.fixed&&S.isAdmin))?'confirmed':'pending';
   const r={uid:S.uid,band:(o.band||'').trim(),rep:(o.rep||'').trim(),kind:o.kind,day:o.day,s:o.s,e:o.e,
     dur:status==='confirmed'?o.e-o.s:o.dur,status:status,createdAt:firebase.database.ServerValue.TIMESTAMP};
+  if(status==='pending'&&o.ex)r.ex=String(o.ex);
   const id=wref(ws).child('reqs').push().key;
   const up={};up['reqs/'+id]=r;
   if(status==='confirmed'){
@@ -146,7 +147,7 @@ async function dbConfirmAll(ws){
     if(t==null){ng++;up['reqs/'+r.id+'/status']='rejected'}
     else{
       ok++;const d=durOf(r);
-      const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d});
+      const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d,ex:''});
       up['reqs/'+r.id]=clean(nx);
       slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});
     }

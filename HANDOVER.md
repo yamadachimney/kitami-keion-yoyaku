@@ -39,7 +39,7 @@
 ```
 weeks/<月曜の日付 YYYY-MM-DD>/
   cfg   {phase: closed|request|free, order: [band,drum,other], maxSlots}
-  reqs/<id> {uid, band, rep, kind, day(0=月), s, e, dur, status: pending|confirmed|rejected, createdAt, ws?, we?}
+  reqs/<id> {uid, band, rep, kind, day(0=月), s, e, dur, status: pending|confirmed|rejected, createdAt, ws?, we?, ex?（授業で除外する30分コマ番号のカンマ区切り。希望のときだけ）}
   slots/<day>_<slot> = <reqId>      ※ s,e,slot は 9:00=0 の30分刻み（0〜23）
 liveIdx/<liveId> {name, date, dates(カンマ区切り), venue}
 lives/<liveId>/

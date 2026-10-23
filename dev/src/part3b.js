@@ -102,7 +102,7 @@ function listView(){
       h('div',{class:'dot'}),
       h('div',{style:'min-width:0'},[
         h('div',{class:'nm',text:nm(r)}),
-        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+durOf(r)):'')})
+        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&exText(r)?'　'+exText(r):'')+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+durOf(r)):'')})
       ]),
       h('div',{class:'acts'},[h('span',{class:'chip '+r.status,text:ST[r.status]}),
         r.status==='pending'&&conflicts(r)?h('span',{class:'chip rejected',text:'被り'}):(r.status==='pending'&&clashes(r).length?h('span',{class:'chip pending',text:'調整OK'}):null)]),
