@@ -177,7 +177,7 @@ function exportImage(){
   for(let i=0;i<=SLOTS;i++){g.beginPath();g.moveTo(tw,hh+i*rh);g.lineTo(tw+7*cw,hh+i*rh);g.stroke()}
   colorMap();
   S.reqs.filter(r=>r.status==='confirmed').forEach(r=>{
-    const v=S.colors.get(r.id);const x=tw+r.day*cw,y=hh+r.s*rh,hgt=(r.e-r.s)*rh;
+    const v=S.colors.get(r.id);const x=tw+r.day*cw,y=hh+r.s*rh,hgt=(Math.min(r.e,SLOTS)-r.s)*rh;
     g.fillStyle=v==='m'?'#333333':IMG_COLORS[v||0];g.fillRect(x+1,y+1,cw-3,hgt-2);
     g.fillStyle='#fff';g.textAlign='center';g.font='bold 17px sans-serif';
     let t=nm(r);while(g.measureText(t).width>cw-12&&t.length>1)t=t.slice(0,-1);

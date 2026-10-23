@@ -100,7 +100,9 @@ button{cursor:pointer}
 .tcol{border-right:1px solid var(--line2)}
 .tcol div{height:var(--h);font-family:var(--f-m);font-size:11px;color:var(--muted);text-align:right;padding:2px 6px 0 0;line-height:1}
 .tcol div.hr{color:var(--ink);font-weight:500}
-.day{position:relative;height:calc(24*var(--h));border-left:1px solid var(--line2);cursor:cell;
+.tcol div.endl{position:absolute;bottom:-7px;right:0;height:auto;padding:0 6px 0 0;background:var(--surface)}
+.gb{padding-bottom:10px}
+.day{position:relative;overflow:hidden;height:calc(23*var(--h));border-left:1px solid var(--line2);cursor:cell;
   background-image:linear-gradient(var(--line2) 1px,transparent 1px);background-size:100% calc(2*var(--h))}
 .day.today{background-color:color-mix(in srgb,var(--accent) 5%,var(--surface))}
 .day.ro{cursor:default}
@@ -344,7 +346,7 @@ input.num{width:6em}
 <script>
 (function(){
 'use strict';
-const SLOTS=24, H=24;
+const SLOTS=23, H=24;  /* 9:00〜20:30（30分×23コマ）。前に入った21:00までの予約はデータのまま残して表示だけ20:30で切る */
 const DAYS=['月','火','水','木','金','土','日'];
 const KINDS={band:'バンド練習',drum:'ドラム練習',other:'その他'};
 const KEYS=['band','drum','other'];
@@ -628,7 +630,7 @@ function exportImage(){
   for(let i=0;i<=SLOTS;i++){g.beginPath();g.moveTo(tw,hh+i*rh);g.lineTo(tw+7*cw,hh+i*rh);g.stroke()}
   colorMap();
   S.reqs.filter(r=>r.status==='confirmed').forEach(r=>{
-    const v=S.colors.get(r.id);const x=tw+r.day*cw,y=hh+r.s*rh,hgt=(r.e-r.s)*rh;
+    const v=S.colors.get(r.id);const x=tw+r.day*cw,y=hh+r.s*rh,hgt=(Math.min(r.e,SLOTS)-r.s)*rh;
     g.fillStyle=v==='m'?'#333333':IMG_COLORS[v||0];g.fillRect(x+1,y+1,cw-3,hgt-2);
     g.fillStyle='#fff';g.textAlign='center';g.font='bold 17px sans-serif';
     let t=nm(r);while(g.measureText(t).width>cw-12&&t.length>1)t=t.slice(0,-1);
@@ -751,6 +753,7 @@ function gridView(){
   const body=h('div',{class:'gb'});
   const tcol=h('div',{class:'tcol'});
   for(let i=0;i<SLOTS;i++)tcol.append(h('div',{class:i%2?'':'hr',text:tm(i)}));
+  tcol.append(h('div',{class:'endl',text:tm(SLOTS)}));
   body.append(tcol);
   const add=canAdd();
   for(let d=0;d<7;d++){
@@ -858,10 +861,10 @@ function statusStrip(){
 
 /* 自分の時間帯と相手の時間帯を、同じ横軸に並べて見せる */
 function timeline(r,cs,bad){
-  const pct=v=>(v/SLOTS*100)+'%';
+  const pct=v=>(Math.min(v,SLOTS)/SLOTS*100)+'%';
   const wrap=h('div',{class:'tl'});
   const ax=h('div',{class:'ax'});
-  [0,6,12,18,24].forEach(i=>ax.append(h('span',{style:'left:'+pct(i),text:tm(i).replace(':00','時')})));
+  [0,6,12,18,SLOTS].forEach(i=>ax.append(h('span',{style:'left:'+pct(i),text:tm(i).replace(':00','時')})));
   wrap.append(ax);
   const ov=c=>h('div',{class:'ov'+(bad?'':' ok'),style:'left:'+pct(c.s)+';width:'+pct(c.e-c.s)});
   const mineRow=h('div',{class:'tr'},[h('div',{class:'bar '+cc(r),style:'left:'+pct(r.s)+';width:'+pct(r.e-r.s)})]);
@@ -1201,8 +1204,8 @@ function openAdd(day,idx,edit,draft){
   const isFlex=()=>!fixedIn.checked&&(edit?edit.status==='pending':!free);
 
   const selDay=h('select',{id:'fDay'},[0,1,2,3,4,5,6].map(d=>h('option',{value:d,text:DAYS[d]+'曜 '+md(addDays(S.ws,d))})));
-  const selS=h('select',{id:'fS'},Array.from({length:SLOTS},(_,i)=>h('option',{value:i,text:tm(i)})));
-  const selE=h('select',{id:'fE'},Array.from({length:SLOTS},(_,i)=>h('option',{value:i+1,text:tm(i+1)})));
+  const selS=h('select',{id:'fS'},Array.from({length:Math.max(SLOTS,f.s+1)},(_,i)=>h('option',{value:i,text:tm(i)})));
+  const selE=h('select',{id:'fE'},Array.from({length:Math.max(SLOTS,f.e)},(_,i)=>h('option',{value:i+1,text:tm(i+1)})));
   const selDur=h('select',{id:'fDur'},Array.from({length:Math.max(max,f.dur)},(_,i)=>h('option',{value:i+1,text:durLabel(i+1)})));
   const lbS=h('label',{for:'fS'}),lbE=h('label',{for:'fE'});
   const timeLb=h('span',{class:'lb'});

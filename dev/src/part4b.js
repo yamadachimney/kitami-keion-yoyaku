@@ -28,8 +28,8 @@ function openAdd(day,idx,edit,draft){
   const isFlex=()=>!fixedIn.checked&&(edit?edit.status==='pending':!free);
 
   const selDay=h('select',{id:'fDay'},[0,1,2,3,4,5,6].map(d=>h('option',{value:d,text:DAYS[d]+'曜 '+md(addDays(S.ws,d))})));
-  const selS=h('select',{id:'fS'},Array.from({length:SLOTS},(_,i)=>h('option',{value:i,text:tm(i)})));
-  const selE=h('select',{id:'fE'},Array.from({length:SLOTS},(_,i)=>h('option',{value:i+1,text:tm(i+1)})));
+  const selS=h('select',{id:'fS'},Array.from({length:Math.max(SLOTS,f.s+1)},(_,i)=>h('option',{value:i,text:tm(i)})));
+  const selE=h('select',{id:'fE'},Array.from({length:Math.max(SLOTS,f.e)},(_,i)=>h('option',{value:i+1,text:tm(i+1)})));
   const selDur=h('select',{id:'fDur'},Array.from({length:Math.max(max,f.dur)},(_,i)=>h('option',{value:i+1,text:durLabel(i+1)})));
   const lbS=h('label',{for:'fS'}),lbE=h('label',{for:'fE'});
   const timeLb=h('span',{class:'lb'});

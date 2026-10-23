@@ -38,10 +38,10 @@ function statusStrip(){
 
 /* 自分の時間帯と相手の時間帯を、同じ横軸に並べて見せる */
 function timeline(r,cs,bad){
-  const pct=v=>(v/SLOTS*100)+'%';
+  const pct=v=>(Math.min(v,SLOTS)/SLOTS*100)+'%';
   const wrap=h('div',{class:'tl'});
   const ax=h('div',{class:'ax'});
-  [0,6,12,18,24].forEach(i=>ax.append(h('span',{style:'left:'+pct(i),text:tm(i).replace(':00','時')})));
+  [0,6,12,18,SLOTS].forEach(i=>ax.append(h('span',{style:'left:'+pct(i),text:tm(i).replace(':00','時')})));
   wrap.append(ax);
   const ov=c=>h('div',{class:'ov'+(bad?'':' ok'),style:'left:'+pct(c.s)+';width:'+pct(c.e-c.s)});
   const mineRow=h('div',{class:'tr'},[h('div',{class:'bar '+cc(r),style:'left:'+pct(r.s)+';width:'+pct(r.e-r.s)})]);

@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-const SLOTS=24, H=24;
+const SLOTS=23, H=24;  /* 9:00〜20:30（30分×23コマ）。前に入った21:00までの予約はデータのまま残して表示だけ20:30で切る */
 const DAYS=['月','火','水','木','金','土','日'];
 const KINDS={band:'バンド練習',drum:'ドラム練習',other:'その他'};
 const KEYS=['band','drum','other'];

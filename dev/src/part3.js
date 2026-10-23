@@ -93,6 +93,7 @@ function gridView(){
   const body=h('div',{class:'gb'});
   const tcol=h('div',{class:'tcol'});
   for(let i=0;i<SLOTS;i++)tcol.append(h('div',{class:i%2?'':'hr',text:tm(i)}));
+  tcol.append(h('div',{class:'endl',text:tm(SLOTS)}));
   body.append(tcol);
   const add=canAdd();
   for(let d=0;d<7;d++){
