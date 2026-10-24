@@ -1,5 +1,5 @@
 /* 北見工大 軽音予約：アプリ化用（オフラインでも画面だけは開けるようにする） */
-const VERSION = 'v11';
+const VERSION = 'v12';
 const CORE = ['./', 'index.html', 'firebase-config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
@@ -17,7 +17,7 @@ self.addEventListener('fetch', e => {
   const isPage = req.mode === 'navigate' || (sameOrigin && /(\/|index\.html|firebase-config\.js)$/.test(url.pathname));
   if (isPage) {
     // ページ本体は「最新を優先」。電波がないときだけ保存しておいたものを出す
-    e.respondWith(fetch(req).then(r => { const c = r.clone(); caches.open(VERSION).then(x => x.put(req, c)); return r; })
+    e.respondWith(fetch(req.url,{cache:'no-cache',credentials:'same-origin'}).then(r => { const c = r.clone(); caches.open(VERSION).then(x => x.put(req, c)); return r; })
       .catch(() => caches.match(req).then(r => r || caches.match('index.html'))));
     return;
   }

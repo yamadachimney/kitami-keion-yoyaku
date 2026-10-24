@@ -7,6 +7,8 @@ body=p1[p1.index('<div class="app">'):]
 order=['part2.js','part2db.js','part3.js','part3b.js','part3c.js','part3d.js','part4a.js','part4b.js','part4d.js','part5.js','part4c.js']
 js=''.join(open(SRC+'/'+f).read() for f in order)
 FB='https://www.gstatic.com/firebasejs/10.12.2/'
+import time
+BUILD=time.strftime('%Y%m%d%H%M%S')
 html=f'''<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -39,6 +41,7 @@ html=f'''<!DOCTYPE html>
 <script src="{FB}firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
+window.__BUILD='{BUILD}';
 {js}</script>
 <script>
 if('serviceWorker' in navigator){{window.addEventListener('load',()=>{{navigator.serviceWorker.register('sw.js').catch(()=>{{}})}})}}

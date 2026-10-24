@@ -34,6 +34,15 @@ function render(){
   const nw=$('gridWrap');if(nw){nw.scrollLeft=sx;nw.scrollTop=sy}
   if(S.detailId)openDetail(S.detailId);
 }
+/* 新しい版が出ていたら知らせる（ホーム画面のアプリは開きっぱなしで古いままになりやすいので） */
+let lastCheck=0;
+function checkUpdate(){
+  if(!window.__BUILD||Date.now()-lastCheck<60000)return;lastCheck=Date.now();
+  fetch(location.pathname+'?u='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'').then(t=>{
+    const m=/window\.__BUILD='(\d+)'/.exec(t);
+    if(m&&m[1]>window.__BUILD&&!$('updBar'))document.body.append(h('button',{id:'updBar',class:'updbar',onclick:()=>location.reload(),text:'新しい版があります。タップで更新'}));
+  }).catch(()=>{});
+}
 function boot(){
   S.ws=defaultWeek();
   S.mode=(['yoyaku','live','supply'].indexOf(lsGet('kitami-mode'))>=0)?lsGet('kitami-mode'):'yoyaku';
@@ -67,8 +76,9 @@ function boot(){
   /* 画面を閉じて1分たったら接続を切る（同時接続数を節約）。戻ったらすぐつなぎ直す */
   document.addEventListener('visibilitychange',()=>{
     if(document.hidden){FBX.offT=setTimeout(()=>{FBX.db.goOffline();FBX.adminDb.goOffline()},60000)}
-    else{clearTimeout(FBX.offT);FBX.db.goOnline();FBX.adminDb.goOnline()}
+    else{clearTimeout(FBX.offT);FBX.db.goOnline();FBX.adminDb.goOnline();checkUpdate()}
   });
+  setTimeout(checkUpdate,3000);
 }
 boot();
 })();
