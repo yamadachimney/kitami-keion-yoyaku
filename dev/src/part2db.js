@@ -159,34 +159,62 @@ async function dbConfirmAll(ws){
 }
 
 /* ---------- 練習表を画像で保存（スプレッドシートの代わり） ---------- */
-const IMG_COLORS=['#1f4fb5','#a83232','#4f7a3a','#8a6d1d'];
-function exportImage(){
-  const cw=150,tw=80,rh=34,hh=70,W=tw*2+cw*7,Hh=hh+rh*SLOTS;
+/* ---------- 練習表の画像（今までのスプレッドシートと同じ見た目） ---------- */
+const IMG_COLORS=['#6d9eeb','#e06666','#93c47d','#ffd966'];
+function drawSheet(){
+  const cw=150,tw=86,rh=30,h1=40,h2=30,hh=h1+h2,W=tw*2+cw*7,Hh=hh+rh*SLOTS+16;
   const cv=document.createElement('canvas');cv.width=W*2;cv.height=Hh*2;
   const g=cv.getContext('2d');g.scale(2,2);
-  g.fillStyle='#000';g.fillRect(0,0,W,Hh);
-  g.font='bold 24px sans-serif';g.fillStyle='#fff';g.textBaseline='middle';g.textAlign='center';
-  g.fillText('練習表',tw/2+10,hh/2);
+  const F='"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif';
+  g.fillStyle='#fff';g.fillRect(0,0,W,Hh);
+  g.textBaseline='middle';
+  /* 見出し：曜日（明るい青）と日付（濃い青） */
+  g.fillStyle='#6d9eeb';g.fillRect(tw,0,cw*7,h1);g.fillStyle='#4a86e8';g.fillRect(0,h1,W,h2);
+  g.fillStyle='#000';g.font='900 26px '+F;g.textAlign='left';g.fillText('練習表',8,h1/2+1);
   for(let d=0;d<7;d++){
-    const x=tw+d*cw;g.fillStyle='#1b3a8f';g.fillRect(x,0,cw-1,hh-1);
-    g.fillStyle='#fff';g.font='bold 18px sans-serif';g.fillText(DAYS[d]+'曜日',x+cw/2,22);
-    g.font='15px sans-serif';g.fillText(md(addDays(S.ws,d)),x+cw/2,48);
+    const x=tw+d*cw;
+    g.fillStyle='#000';g.font='15px '+F;g.textAlign='left';g.fillText(DAYS[d]+'曜日',x+6,h1/2);
+    g.textAlign='right';g.fillText(d===0?addDays(S.ws,0).replace(/-/g,'/'):md(addDays(S.ws,d)),x+cw-6,h1+h2/2);
   }
-  g.font='15px sans-serif';g.textAlign='right';
-  for(let i=0;i<SLOTS;i++){const y=hh+i*rh+rh/2;g.fillStyle='#fff';g.fillText(tm(i),tw-10,y);g.fillText(tm(i),W-10,y)}
-  g.strokeStyle='#222';
-  for(let i=0;i<=SLOTS;i++){g.beginPath();g.moveTo(tw,hh+i*rh);g.lineTo(tw+7*cw,hh+i*rh);g.stroke()}
+  /* 時間の列（左右） */
+  g.font='15px '+F;g.fillStyle='#000';
+  for(let i=0;i<=SLOTS;i++){const y=hh+i*rh;g.textAlign='right';g.fillText(tm(i),tw-8,y+(i<SLOTS?rh/2:8));g.textAlign='left';g.fillText(tm(i),tw+cw*7+8,y+(i<SLOTS?rh/2:8))}
+  /* マス目 */
+  g.strokeStyle='#d0d0d0';g.lineWidth=1;
+  for(let i=0;i<=SLOTS;i++){g.beginPath();g.moveTo(0,hh+i*rh+.5);g.lineTo(W,hh+i*rh+.5);g.stroke()}
+  for(let d=0;d<=7;d++){g.beginPath();g.moveTo(tw+d*cw+.5,0);g.lineTo(tw+d*cw+.5,hh+rh*SLOTS);g.stroke()}
+  /* 予約 */
   colorMap();
   S.reqs.filter(r=>r.status==='confirmed').forEach(r=>{
     const v=S.colors.get(r.id);const x=tw+r.day*cw,y=hh+r.s*rh,hgt=(Math.min(r.e,SLOTS)-r.s)*rh;
-    g.fillStyle=v==='m'?'#333333':IMG_COLORS[v||0];g.fillRect(x+1,y+1,cw-3,hgt-2);
-    g.fillStyle='#fff';g.textAlign='center';g.font='bold 17px sans-serif';
-    let t=nm(r);while(g.measureText(t).width>cw-12&&t.length>1)t=t.slice(0,-1);
+    g.fillStyle=isMeeting(r)||v==='m'?'#cccccc':IMG_COLORS[(v||0)%IMG_COLORS.length];g.fillRect(x+1,y+1,cw-1,hgt-1);
+    g.strokeStyle='#888';g.strokeRect(x+.5,y+.5,cw,hgt);
+    g.fillStyle='#000';g.textAlign='center';g.font='15px '+F;
+    let t=nm(r);while(g.measureText(t).width>cw-10&&t.length>1)t=t.slice(0,-1);
     g.fillText(t,x+cw/2,y+hgt/2);
   });
-  const a=document.createElement('a');a.download='練習表_'+S.ws+'.png';a.href=cv.toDataURL('image/png');
-  document.body.append(a);a.click();a.remove();
-  toast('練習表の画像を保存しました');
+  return cv;
+}
+function sheetFile(cv){
+  const url=cv.toDataURL('image/png'),bin=atob(url.split(',')[1]),u=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  return {url:url,file:new File([u],'練習表_'+md(S.ws).replace('/','-')+'〜.png',{type:'image/png'})};
+}
+/* 画像を見てから「送る」（スマホの共有メニュー → LINE など）か「保存」 */
+function exportImage(){
+  if(!S.reqs.some(r=>r.status==='confirmed')){toast('この週はまだ確定した予約がありません');return}
+  const cv=drawSheet(),o=sheetFile(cv);
+  const canShare=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:[o.file]}));
+  const save=()=>{const a=document.createElement('a');a.download=o.file.name;a.href=o.url;document.body.append(a);a.click();a.remove();toast('練習表の画像を保存しました')};
+  const send=()=>{navigator.share({files:[o.file],text:'練習表（'+md(S.ws)+'〜'+md(addDays(S.ws,6))+'）'}).catch(e=>{if(e&&e.name!=='AbortError')save()})};
+  layer(h('div',{class:'sheet wide',role:'dialog','aria-modal':'true'},[
+    h('h3',{text:'練習表（'+md(S.ws)+'〜'+md(addDays(S.ws,6))+'）'}),
+    h('img',{src:o.url,alt:'練習表',class:'sheetimg'}),
+    h('p',{class:'rank',text:canShare?'「送る」を押すと共有メニューが開くので、LINE を選んでグループに送ってください。':'この端末では直接送れないので、「保存」してから LINE で送ってください。画像を長押しして保存もできます。'}),
+    h('div',{class:'row',style:'justify-content:flex-end'},[h('button',{class:'btn',onclick:closeSheet,text:'閉じる'}),
+      h('button',{class:canShare?'btn':'btn primary',onclick:save,text:'保存'}),
+      canShare?h('button',{class:'btn primary',onclick:send,text:'送る（LINEなど）'}):null])
+  ]));
 }
 
 /* ---------- カレンダー用ファイル（.ics）をその場で作る ---------- */

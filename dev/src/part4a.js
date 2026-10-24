@@ -55,9 +55,9 @@ function adminView(){
   const kids=[h('h2',{text:'部会で確定する'}),h('p',{text:'優先度の高い順に、同じ優先度は先に出した順に、希望の時間帯の中で重ならないよう自動で並べて確定します。時間帯の中に入りきらない希望は「見送り」になり、希望一覧から個別に直せます。確定後は自由予約に切り替わります。'}),btn];
   if(S.armed)kids.push(h('button',{class:'btn sm',onclick:()=>{S.armed=false;render()},text:'やめる'}));
   return h('div',{style:'display:flex;flex-direction:column;gap:12px'},[c1,meetingCard(),c2,cMax,h('div',{class:'card'},kids),
-    h('div',{class:'card'},[h('h2',{text:'練習表を画像で保存'}),
-      h('p',{text:'この週の確定した予約を、今までの練習表と同じ形の画像にします。LINEに貼るときに便利です。'}),
-      h('div',{class:'row'},[h('button',{class:'btn',onclick:()=>exportImage(),text:'練習表を画像で保存'})])]),
+    h('div',{class:'card'},[h('h2',{text:'練習表を画像で送る'}),
+      h('p',{text:'この週の確定した予約を、今までの練習表と同じ見た目の画像にします。そのまま LINE のグループに送れます。'}),
+      h('div',{class:'row'},[h('button',{class:'btn primary',onclick:()=>exportImage(),text:'練習表を画像で送る'})])]),
     h('div',{class:'card'},[h('h2',{text:'この端末の管理者モード'}),
       h('p',{text:'このスマホでは、終了するまで管理者のままです。共用のスマホやPCで使ったあとは、必ず終了してください。'}),
       h('div',{class:'row'},[h('button',{class:'btn',onclick:async()=>{await adminLogout();S.isAdmin=false;S.tab='grid';render();toast('管理者モードを終了しました')},text:'管理者モードを終了'})])])
