@@ -67,7 +67,14 @@ function durLabel(n){const h=Math.floor(n/2);return (h?h+'時間':'')+(n%2?'30�
 const KOMA=[{n:'1・2限',t:'8:45–10:15',sl:[0,1,2]},{n:'3・4限',t:'10:30–12:00',sl:[3,4,5]},{n:'5・6限',t:'13:00–14:30',sl:[8,9,10]},{n:'7・8限',t:'14:45–16:15',sl:[11,12,13,14]},{n:'9・10限',t:'16:30–18:00',sl:[15,16,17]}];
 function exSet(r){if(!r||!r.ex)return null;const s=new Set(String(r.ex).split(',').filter(x=>x!=='').map(Number));return s.size?s:null}
 function exKoma(r){const s=exSet(r);if(!s)return [];return KOMA.filter(k=>k.sl.some(i=>s.has(i)&&i>=r.s&&i<r.e))}
-function exText(r){const k=exKoma(r);return k.length?'授業で除外：'+k.map(x=>x.n).join('・'):''}
+/* 除外を「授業のコマ」と「自分で決めた時間」に分ける */
+function exParts(set,s,e){
+  const koma=KOMA.filter(k=>{const w=k.sl.filter(i=>i>=s&&i<e);return w.length&&w.every(i=>set.has(i))});
+  const used=new Set();koma.forEach(k=>k.sl.forEach(i=>used.add(i)));
+  const custom=[];let i=s;while(i<e){if(set.has(i)&&!used.has(i)){let j=i;while(j<e&&set.has(j)&&!used.has(j))j++;custom.push([i,j]);i=j}else i++}
+  return {koma:koma,custom:custom};
+}
+function exText(r){const s=exSet(r);if(!s)return '';const p=exParts(s,r.s,r.e);const a=p.koma.map(x=>x.n).concat(p.custom.map(c=>tm(c[0])+'–'+tm(c[1])));return a.length?'除外：'+a.join('・'):''}
 function canFit(r){const ex=exSet(r);for(let t=r.s;t+r.dur<=r.e;t++){let ok=true;for(let i=t;i<t+r.dur;i++)if(ex&&ex.has(i)){ok=false;break}if(ok)return true}return false}
 function feasible(items,occ){
   const list=items.map(x=>Object.assign({},x,{_ex:exSet(x)})).sort((a,b)=>((a.e-a.s-a.dur-(a._ex?a._ex.size:0))-(b.e-b.s-b.dur-(b._ex?b._ex.size:0)))||a.s-b.s);

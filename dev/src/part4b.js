@@ -39,11 +39,25 @@ function openAdd(day,idx,edit,draft){
   if(!f.ex)f.ex=[];
   /* 授業があるコマを除外（希望のときだけ） */
   const exBox=h('div',{class:'exbox'});
-  const exField=h('div',{class:'field'},[h('span',{class:'lb',text:'授業がある時間（除外・いくつでも）'}),exBox,
-    h('div',{class:'rank',text:'押したコマには練習が入りません。授業をはさんで、1つの希望で出せます。'})]);
+  const exOwn=h('div',{class:'exbox'});
+  const exFrom=h('select',{'aria-label':'除外する時間（から）',class:'sel-sm'}),exTo=h('select',{'aria-label':'除外する時間（まで）',class:'sel-sm'});
+  const exAdd=h('button',{type:'button',class:'btn sm',text:'＋ 除外に追加',onclick:()=>{
+    const a=+exFrom.value,b=+exTo.value;if(!(b>a)){toast('「まで」は「から」より後にしてください');return}
+    for(let i=a;i<b;i++)if(f.ex.indexOf(i)<0)f.ex.push(i);refresh()}});
+  const exField=h('div',{class:'field'},[h('span',{class:'lb',text:'行けない時間（除外・いくつでも）'}),
+    h('div',{class:'rank',text:'授業のコマ'}),exBox,
+    h('div',{class:'rank',style:'margin-top:4px',text:'自分で時間を指定'}),h('div',{class:'row',style:'gap:6px'},[exFrom,'〜',exTo,exAdd]),exOwn,
+    h('div',{class:'rank',text:'除外したところには練習が入りません。授業やバイトをはさんでも、1つの希望で出せます。'})]);
   const exIn=()=>{const w=new Set();for(let i=f.s;i<f.e;i++)w.add(i);return f.ex.filter(i=>w.has(i))};
   function renderEx(){
-    exBox.replaceChildren();
+    exBox.replaceChildren();exOwn.replaceChildren();
+    /* 自分で指定：時間帯の中だけ選べる */
+    const fv=+exFrom.value,tv=+exTo.value;
+    exFrom.replaceChildren(...Array.from({length:f.e-f.s},(_,k)=>h('option',{value:f.s+k,text:tm(f.s+k)})));
+    exTo.replaceChildren(...Array.from({length:f.e-f.s},(_,k)=>h('option',{value:f.s+k+1,text:tm(f.s+k+1)})));
+    exFrom.value=fv>=f.s&&fv<f.e?fv:f.s;exTo.value=tv>f.s&&tv<=f.e?tv:Math.min(f.e,+exFrom.value+2);
+    const p=exParts(new Set(exIn()),f.s,f.e);
+    p.custom.forEach(c=>exOwn.append(h('button',{type:'button',class:'pc kz','aria-pressed':'true','aria-label':tm(c[0])+'から'+tm(c[1])+'の除外をやめる',onclick:()=>{f.ex=f.ex.filter(i=>i<c[0]||i>=c[1]);refresh()}},[h('b',{text:tm(c[0])+'–'+tm(c[1])}),h('small',{text:'× で外す'})])));
     const ks=KOMA.filter(k=>k.sl.some(i=>i>=f.s&&i<f.e));
     if(!ks.length){exBox.append(h('span',{class:'rank',text:'この時間帯には授業のコマがありません'}));return}
     ks.forEach(k=>{const on=k.sl.filter(i=>i>=f.s&&i<f.e).every(i=>f.ex.indexOf(i)>=0);
@@ -66,7 +80,7 @@ function openAdd(day,idx,edit,draft){
     }
     const kv=kindEl?kindEl.value:'band';
     const cand={id:'__new',kind:kv,day:f.day,s:f.s,e:f.e,dur:f.dur,ex:exIn().join(','),status:'pending',createdAt:edit?(edit.createdAt||0):Date.now()};
-    if(!canFit(cand)){pv.append(h('div',{class:'clashbox'},[h('div',{class:'ttl',text:'授業を除くと、'+durLabel(f.dur)+'続けて取れる時間がありません'}),h('div',{class:'hint',text:'時間帯を広げるか、練習時間を短くしてください。'})]));return}
+    if(!canFit(cand)){pv.append(h('div',{class:'clashbox'},[h('div',{class:'ttl',text:'行けない時間を除くと、'+durLabel(f.dur)+'続けて取れる時間がありません'}),h('div',{class:'hint',text:'時間帯を広げるか、練習時間を短くしてください。'})]));return}
     const before=simulate(others);
     const after=simulate(others.concat([cand]));
     const t=after.place.get('__new');
@@ -132,7 +146,7 @@ function openAdd(day,idx,edit,draft){
       dur=f.dur;
       if(dur>max){err.textContent='1回の上限は '+durLabel(max)+' です';return}
       if(f.e-f.s<dur){err.textContent='時間帯が練習時間（'+durLabel(dur)+'）より短いです。時間帯を広げてください';return}
-      if(!canFit({s:f.s,e:f.e,dur:dur,ex:exIn().join(',')})){err.textContent='授業を除くと、'+durLabel(dur)+'続けて取れる時間がありません';return}
+      if(!canFit({s:f.s,e:f.e,dur:dur,ex:exIn().join(',')})){err.textContent='行けない時間を除くと、'+durLabel(dur)+'続けて取れる時間がありません';return}
     }else{
       if(!fx&&dur>max){err.textContent='1回の上限は '+durLabel(max)+' です。時間を短くしてください';return}
       const cand={day:f.day,s:f.s,e:f.e};
