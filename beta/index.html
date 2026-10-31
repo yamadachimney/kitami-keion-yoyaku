@@ -178,6 +178,11 @@ select,input[type=text]{border:1px solid var(--line);background:var(--surface);b
 .stime.cut{color:var(--drum);font-weight:700}
 .banner .btn{flex:none}
 .updbar{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));z-index:40;border:0;border-radius:99px;background:var(--accent);color:var(--accent-ink);font-weight:700;padding:10px 18px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.daychart .tr{height:28px}
+.daychart .lbl{display:flex;flex-wrap:wrap;align-items:center;gap:2px 0;margin-top:4px;color:var(--ink)}
+.daychart .bar.badbar{--kc:var(--bad)} .daychart .bar.okbar{--kc:var(--ok)} .daychart .bar.cm{--kc:var(--cm)}
+.daychart .pl.okpl{--kc:var(--ok)}
+.daychart .exbar{position:absolute;top:2px;bottom:2px;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 55%,transparent) 0 3px,transparent 3px 6px)}
 .sheetimg{width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
 .li .dot{width:10px;height:36px;border-radius:4px;background:var(--kc)}
 .li.band{--kc:var(--band)} .li.drum{--kc:var(--drum)} .li.other{--kc:var(--other)}
@@ -352,7 +357,7 @@ input.num{width:6em}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../firebase-config.js"></script>
 <script>
-window.__BUILD='20261031123342';
+window.__BUILD='20261031123900';
 (function(){
 'use strict';
 const SLOTS=23, H=24;  /* 9:00〜20:30（30分×23コマ）。前に入った21:00までの予約はデータのまま残して表示だけ20:30で切る */
@@ -790,6 +795,7 @@ function renderBanner(){
   b.replaceChildren(msg);
   /* 希望で週間表が埋まっていても出せるように、タップ以外の入口も置く */
   if(p==='request'&&!S.fail)b.append(h('button',{class:'btn primary',onclick:()=>openAdd(defaultAddDay(),0),text:'＋ 希望を出す'}));
+  if(p==='request'&&!S.fail&&(S.isAdmin||S.showAll)&&S.plan.bad.size)b.append(h('button',{class:'btn',style:'border-color:var(--bad);color:var(--bad)',onclick:()=>openConflicts(),text:'被りを整理する（'+S.plan.bad.size+'件）'}));
   if(S.isAdmin&&p==='request'&&!S.fail)b.append(h('button',{class:'btn',onclick:openSuggest,text:'調整の提案を見る'}),bandConfirmBtn(true));
   if(S.isAdmin&&p==='free'&&!S.fail)b.append(h('button',{class:'btn primary',onclick:exportImage,text:'練習表を画像で送る'}));
   if(S.isAdmin&&p==='closed'&&!S.loading)b.append(h('button',{class:'btn primary',onclick:()=>saveCfg({phase:'request'}),text:'募集を開始する'}));
@@ -1533,6 +1539,75 @@ function openSuggest(){
     kids.push(box);
   });
   kids.push(h('div',{class:'row',style:'justify-content:flex-end'},[h('button',{class:'btn',onclick:closeSheet,text:'閉じる'})]));
+  layer(h('div',{class:'sheet wide',role:'dialog','aria-modal':'true'},kids));
+}
+
+/* ---------- 被りの整理 ----------
+   入りきらない希望がある日ごとに、どこで被っているかを1枚の図で見せて、
+   「だれを取り消せば（見送りにすれば）残りが全員入るか」を出す。バンド練習だけで見ることもできる */
+function conflictDay(d,onlyBand){
+  const items=live().filter(r=>r.day===d&&(r.status==='confirmed'||(r.status==='pending'&&(!onlyBand||r.kind==='band'))));
+  const occ=dayOcc(items),sim=simulate(items);
+  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:durOf(r)}));
+  const bad=pend.filter(r=>sim.bad.has(r.id));
+  if(!bad.length)return null;
+  /* 入らない希望と時間帯でつながっている希望をまとめる */
+  const grp=new Set(bad.map(r=>r.id));let grew=true;
+  while(grew){grew=false;pend.forEach(r=>{if(grp.has(r.id))return;if(pend.some(o=>grp.has(o.id)&&effOverlap(r,o))){grp.add(r.id);grew=true}})}
+  const group=pend.filter(r=>grp.has(r.id)).sort((a,b)=>a.s-b.s||byDecision(a,b));
+  /* 取り消し案：少ない人数で、優先度が低い・後から出した希望から */
+  const cand=group.slice().sort((a,b)=>rankOf(b.kind)-rankOf(a.kind)||(b.createdAt||0)-(a.createdAt||0));
+  const sols=[];let calls=0;
+  const tryK=(k,start,picked)=>{
+    if(sols.length>=3||calls>600)return;
+    if(picked.length===k){calls++;const rest=pend.filter(r=>picked.indexOf(r)<0);const f=feasible(rest,occ);if(f)sols.push({rm:picked.slice(),place:f,rest:rest});return}
+    for(let i=start;i<cand.length;i++){picked.push(cand[i]);tryK(k,i+1,picked);picked.pop()}
+  };
+  for(let k=1;k<=Math.min(3,cand.length)&&!sols.length;k++)tryK(k,0,[]);
+  const lo=Math.min.apply(null,group.map(r=>r.s)),hi=Math.max.apply(null,group.map(r=>r.e));
+  const conf=items.filter(r=>r.status==='confirmed'&&r.s<hi&&lo<r.e);
+  return {day:d,group:group,bad:new Set(bad.map(r=>r.id)),place:sim.place,sols:sols,conf:conf,lo:lo,hi:hi};
+}
+function dayChart(x){
+  const span=x.hi-x.lo,pct=v=>((v-x.lo)/span*100)+'%';
+  const wrap=h('div',{class:'tl daychart'});
+  const ax=h('div',{class:'ax'});
+  for(let i=x.lo;i<=x.hi;i++)if(i%2===0||i===x.lo||i===x.hi){if(span>8&&i!==x.lo&&i!==x.hi&&i%4!==0)continue;ax.append(h('span',{style:'left:'+pct(i),text:tm(i)}))}
+  wrap.append(ax);
+  x.conf.forEach(c=>wrap.append(h('div',{class:'lbl',text:nm(c)+'（確定済み）'}),h('div',{class:'tr'},[h('div',{class:'bar solid cm',style:'left:'+pct(Math.max(c.s,x.lo))+';width:'+pct(x.lo+Math.min(c.e,x.hi)-Math.max(c.s,x.lo))})])));
+  x.group.forEach(r=>{
+    const isBad=x.bad.has(r.id),t=x.place.get(r.id),ex=exSet(r);
+    const row=h('div',{class:'tr'},[h('div',{class:'bar '+(isBad?'badbar':'okbar'),style:'left:'+pct(r.s)+';width:'+pct(x.lo+r.e-r.s)})]);
+    if(ex)for(let i=r.s;i<r.e;i++)if(ex.has(i))row.append(h('div',{class:'exbar',style:'left:'+pct(i)+';width:'+pct(x.lo+1)}));
+    if(t!=null)row.append(h('div',{class:'pl okpl',style:'left:'+pct(t)+';width:'+pct(x.lo+r.dur)}));
+    wrap.append(h('div',{class:'lbl'},[h('b',{text:nm(r)}),'　'+KINDS[r.kind]+'・'+durLabel(r.dur)+'　',h('span',{class:'chip '+(isBad?'rejected':'confirmed'),text:isBad?'入らない':'入る '+tm(t)+'–'+tm(t+r.dur)})]),row);
+  });
+  return wrap;
+}
+function openConflicts(onlyBand){
+  if(onlyBand==null)onlyBand=S.cfOnlyBand!=null?S.cfOnlyBand:true;
+  S.cfOnlyBand=onlyBand;
+  const res=[0,1,2,3,4,5,6].map(d=>conflictDay(d,onlyBand)).filter(Boolean);
+  const seg=h('div',{class:'seg',style:'align-self:flex-start'},[[true,'バンド練習だけ'],[false,'全部']].map(o=>h('button',{'aria-pressed':String(onlyBand===o[0]),onclick:()=>openConflicts(o[0]),text:o[1]})));
+  const kids=[h('h3',{text:'被りの整理'}),seg,
+    h('p',{class:'rank',text:'点線の枠＝希望の時間帯、色の帯＝入る場所、赤＝入りきらない希望、灰色の斜線＝除外した時間。優先度順（'+order().map(k=>KINDS[k]).join('→')+'、同じなら先に出した順）で並べた結果です。'})];
+  if(!res.length)kids.push(h('div',{class:'clashbox okbox'},[h('div',{class:'ttl',text:onlyBand?'バンド練習の希望は、被らずに全部入ります':'今の希望は、全部入ります'})]));
+  res.forEach(x=>{
+    const box=h('div',{class:'card tight sugg'},[h('h2',{text:DAYS[x.day]+'曜 '+md(addDays(S.ws,x.day))+'：入りきらない '+x.bad.size+'件'}),dayChart(x)]);
+    if(x.sols.length){
+      box.append(h('div',{class:'shead'},[h('b',{text:'取り消せば全員入る案'})]));
+      x.sols.forEach((sol,i)=>{
+        const names=sol.rm.map(r=>nm(r)+'（'+KINDS[r.kind]+'・'+tm(r.s)+'–'+tm(r.e)+'）').join('、');
+        const kidsS=[h('div',null,[h('b',{text:'案'+(i+1)+'　'}),names+' を取り消すと、残りは全員入ります'])];
+        if(S.isAdmin){const b=h('button',{class:'btn sm',text:'この'+sol.rm.length+'件を見送りにする',onclick:async()=>{
+          if(b.dataset.a!=='1'){b.dataset.a='1';b.textContent='もう一度押すと見送りにします';return}
+          b.disabled=true;try{for(const r of sol.rm)await updReq(r.id,{status:'rejected'});toast('見送りにしました。本人にも伝えてください（希望一覧から「希望に戻す」もできます）');closeSheet();setTimeout(()=>openConflicts(onlyBand),600)}catch(e){b.disabled=false}}});kidsS.push(h('div',{class:'row'},[b]))}
+        box.append(h('div',{class:'sopt'},kidsS));
+      });
+    }else box.append(h('div',{class:'hint',text:'1〜3件の取り消しでは全員入りません。時間帯を広げてもらうか、別の日に移す相談が必要です。'}));
+    kids.push(box);
+  });
+  kids.push(h('div',{class:'row',style:'justify-content:flex-end'},[S.isAdmin?h('button',{class:'btn',onclick:openSuggest,text:'30分削る案を見る'}):null,h('button',{class:'btn',onclick:closeSheet,text:'閉じる'})]));
   layer(h('div',{class:'sheet wide',role:'dialog','aria-modal':'true'},kids));
 }
 

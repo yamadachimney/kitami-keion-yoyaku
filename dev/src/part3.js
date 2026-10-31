@@ -54,6 +54,7 @@ function renderBanner(){
   b.replaceChildren(msg);
   /* 希望で週間表が埋まっていても出せるように、タップ以外の入口も置く */
   if(p==='request'&&!S.fail)b.append(h('button',{class:'btn primary',onclick:()=>openAdd(defaultAddDay(),0),text:'＋ 希望を出す'}));
+  if(p==='request'&&!S.fail&&(S.isAdmin||S.showAll)&&S.plan.bad.size)b.append(h('button',{class:'btn',style:'border-color:var(--bad);color:var(--bad)',onclick:()=>openConflicts(),text:'被りを整理する（'+S.plan.bad.size+'件）'}));
   if(S.isAdmin&&p==='request'&&!S.fail)b.append(h('button',{class:'btn',onclick:openSuggest,text:'調整の提案を見る'}),bandConfirmBtn(true));
   if(S.isAdmin&&p==='free'&&!S.fail)b.append(h('button',{class:'btn primary',onclick:exportImage,text:'練習表を画像で送る'}));
   if(S.isAdmin&&p==='closed'&&!S.loading)b.append(h('button',{class:'btn primary',onclick:()=>saveCfg({phase:'request'}),text:'募集を開始する'}));
