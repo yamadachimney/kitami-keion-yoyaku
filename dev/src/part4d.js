@@ -6,8 +6,8 @@
 const MIN_SLOTS=2;
 function defaultAddDay(){const t=mondayOf(new Date());if(t!==S.ws)return 0;return (new Date().getDay()+6)%7}
 function dayOcc(items){const occ=new Array(SLOTS).fill(false);items.filter(r=>r.status==='confirmed').forEach(r=>{for(let i=r.s;i<r.e;i++)occ[i]=true});return occ}
-function suggestDay(d){
-  const items=live().filter(r=>r.day===d),occ=dayOcc(items);
+function suggestDay(d,onlyBand){
+  const items=live().filter(r=>r.day===d&&(r.status==='confirmed'||!onlyBand||r.kind==='band')),occ=dayOcc(items);
   const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:durOf(r)}));
   if(!pend.length||feasible(pend,occ))return null;
   const cand=pend.filter(r=>r.dur>MIN_SLOTS).sort((a,b)=>rankOf(b.kind)-rankOf(a.kind)||(b.createdAt||0)-(a.createdAt||0));
@@ -118,11 +118,28 @@ function openConflicts(onlyBand){
   const seg=h('div',{class:'seg',style:'align-self:flex-start'},[[true,'バンド練習だけ'],[false,'全部']].map(o=>h('button',{'aria-pressed':String(onlyBand===o[0]),onclick:()=>openConflicts(o[0]),text:o[1]})));
   const kids=[h('h3',{text:'被りの整理'}),seg,
     h('p',{class:'rank',text:'点線の枠＝希望の時間帯、色の帯＝入る場所、赤＝入りきらない希望、灰色の斜線＝除外した時間。優先度順（'+order().map(k=>KINDS[k]).join('→')+'、同じなら先に出した順）で並べた結果です。'})];
-  if(!res.length)kids.push(h('div',{class:'clashbox okbox'},[h('div',{class:'ttl',text:onlyBand?'バンド練習の希望は、被らずに全部入ります':'今の希望は、全部入ります'})]));
+  if(!res.length){kids.push(h('div',{class:'clashbox okbox'},[h('div',{class:'ttl',text:onlyBand?'バンド練習の希望は、被らずに全部入ります':'今の希望は、全部入ります'})]));
+    if(S.isAdmin&&onlyBand&&S.reqs.some(r=>r.status==='pending'&&r.kind==='band')){const n=S.reqs.filter(r=>r.status==='pending'&&r.kind==='band').length;const b=h('button',{class:'btn primary',text:'バンド練習だけ先に確定（'+n+'件）',onclick:async()=>{if(b.dataset.a!=='1'){b.dataset.a='1';b.textContent='もう一度押すとバンド練習を確定';return}b.disabled=true;closeSheet();await confirmBand()}});kids.push(h('div',{class:'row'},[b]))}}
   res.forEach(x=>{
-    const box=h('div',{class:'card tight sugg'},[h('h2',{text:DAYS[x.day]+'曜 '+md(addDays(S.ws,x.day))+'：入りきらない '+x.bad.size+'件'}),dayChart(x)]);
+    const cut=suggestDay(x.day,onlyBand),canCut=cut&&cut.sols&&cut.sols.length;
+    const box=h('div',{class:'card tight sugg'},[h('div',{class:'shead',style:'flex-wrap:wrap'},[h('h2',{text:DAYS[x.day]+'曜 '+md(addDays(S.ws,x.day))+'：入りきらない '+x.bad.size+'件'}),
+      h('span',{class:'chip '+(canCut?'confirmed':'rejected'),text:canCut?'調整すれば全員入る':'調整だけでは入らない'})]),dayChart(x)]);
+    if(canCut){
+      const cb=h('div',{class:'clashbox okbox'},[h('div',{class:'ttl',text:'練習時間を短くすれば、取り消さずに全員入ります'}),
+        h('div',{class:'hint',text:'30分ずつ、1時間までしか短くしません。削る量が少ない案から。'})]);
+      cut.sols.forEach((sol,i)=>{
+        const times=sol.test.slice().sort((a,b)=>sol.place.get(a.id)-sol.place.get(b.id)).map(r=>{const t=sol.place.get(r.id),c=sol.cuts.find(z=>z.r.id===r.id);return h('div',{class:'stime'+(c?' cut':'')},[h('span',{class:'tm',text:tm(t)+'–'+tm(t+r.dur)}),h('span',{text:nm(r)+(c?'（'+durLabel(c.from)+'→'+durLabel(c.to)+'）':'')})])});
+        const kidsC=[h('div',null,[h('b',{text:'調整'+(i+1)+'　'}),sol.cuts.map(c=>nm(c.r)+' を '+durLabel(c.from)+'→'+durLabel(c.to)).join('、')]),
+          h('div',{class:'stimes'},times)];
+        if(S.isAdmin){const b=h('button',{class:'btn sm primary',text:'この調整にする',onclick:async()=>{
+          if(b.dataset.a!=='1'){b.dataset.a='1';b.textContent='もう一度押すと練習時間を変えます';return}
+          b.disabled=true;try{for(const c of sol.cuts)await updReq(c.r.id,{dur:c.to});toast('調整しました。本人にも伝えてください');closeSheet();setTimeout(()=>openConflicts(onlyBand),600)}catch(e){b.disabled=false}}});kidsC.push(h('div',{class:'row'},[b]))}
+        cb.append(h('div',{class:'sopt'},kidsC));
+      });
+      box.append(cb);
+    }
     if(x.sols.length){
-      box.append(h('div',{class:'shead'},[h('b',{text:'取り消せば全員入る案'})]));
+      box.append(h('div',{class:'shead'},[h('b',{text:canCut?'または、取り消せば全員入る案':'取り消せば全員入る案'})]));
       x.sols.forEach((sol,i)=>{
         const names=sol.rm.map(r=>nm(r)+'（'+KINDS[r.kind]+'・'+tm(r.s)+'–'+tm(r.e)+'）').join('、');
         const kidsS=[h('div',null,[h('b',{text:'案'+(i+1)+'　'}),names+' を取り消すと、残りは全員入ります'])];
