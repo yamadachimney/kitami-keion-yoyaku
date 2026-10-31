@@ -160,6 +160,13 @@ select,input[type=text]{border:1px solid var(--line);background:var(--surface);b
 .daychart .bar.badbar{--kc:var(--bad)} .daychart .bar.okbar{--kc:var(--ok)} .daychart .bar.cm{--kc:var(--cm)}
 .daychart .pl.okpl{--kc:var(--ok)}
 .daychart .exbar{position:absolute;top:2px;bottom:2px;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 55%,transparent) 0 3px,transparent 3px 6px)}
+.wload summary{cursor:pointer;font-weight:700;font-size:13px}
+.wl{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.wlr{display:grid;grid-template-columns:7em 1fr auto;gap:8px;align-items:center;font-size:13px}
+.wlr .wn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.wlr .wb{height:10px;background:var(--line2);border-radius:5px;overflow:hidden}.wlr .wb i{display:block;height:100%;background:var(--accent);border-radius:5px}
+.wlr.hi .wb i{background:var(--drum)}.wlr.lo .wb i{background:var(--ok)}
+.wlr .wt{font-family:var(--f-m);font-size:12px;color:var(--muted);white-space:nowrap}
 .sheetimg{width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
 .li .dot{width:10px;height:36px;border-radius:4px;background:var(--kc)}
 .li.band{--kc:var(--band)} .li.drum{--kc:var(--drum)} .li.other{--kc:var(--other)}

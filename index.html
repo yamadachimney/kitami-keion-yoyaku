@@ -182,6 +182,13 @@ select,input[type=text]{border:1px solid var(--line);background:var(--surface);b
 .daychart .bar.badbar{--kc:var(--bad)} .daychart .bar.okbar{--kc:var(--ok)} .daychart .bar.cm{--kc:var(--cm)}
 .daychart .pl.okpl{--kc:var(--ok)}
 .daychart .exbar{position:absolute;top:2px;bottom:2px;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 55%,transparent) 0 3px,transparent 3px 6px)}
+.wload summary{cursor:pointer;font-weight:700;font-size:13px}
+.wl{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.wlr{display:grid;grid-template-columns:7em 1fr auto;gap:8px;align-items:center;font-size:13px}
+.wlr .wn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.wlr .wb{height:10px;background:var(--line2);border-radius:5px;overflow:hidden}.wlr .wb i{display:block;height:100%;background:var(--accent);border-radius:5px}
+.wlr.hi .wb i{background:var(--drum)}.wlr.lo .wb i{background:var(--ok)}
+.wlr .wt{font-family:var(--f-m);font-size:12px;color:var(--muted);white-space:nowrap}
 .sheetimg{width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
 .li .dot{width:10px;height:36px;border-radius:4px;background:var(--kc)}
 .li.band{--kc:var(--band)} .li.drum{--kc:var(--drum)} .li.other{--kc:var(--other)}
@@ -356,7 +363,7 @@ input.num{width:6em}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
-window.__BUILD='20261031125046';
+window.__BUILD='20261031131944';
 (function(){
 'use strict';
 const SLOTS=23, H=24;  /* 9:00〜20:30（30分×23コマ）。前に入った21:00までの予約はデータのまま残して表示だけ20:30で切る */
@@ -1476,18 +1483,28 @@ function openAdd(day,idx,edit,draft){
    削るのは1時間まで（それより短くはしない）。削る量が少ない案 → 削る人が少ない案の順。
    同じなら、優先度が低い・後から出した希望から削る案を先に出す */
 const MIN_SLOTS=2;
+/* 1週間のバンドごとの練習量（確定＋希望の練習時間）。均等になるよう、多いバンドから削る・取り消す */
+function bandKey(r){return (r.band||r.rep||'').replace(/\s+/g,'').toLowerCase()}
+function weekLoad(){
+  const m=new Map();
+  live().forEach(r=>{if(r.kind!=='band'||isMeeting(r))return;const k=bandKey(r);if(!k)return;const o=m.get(k)||{name:nm(r),n:0,sl:0};o.n++;o.sl+=r.status==='confirmed'?r.e-r.s:durOf(r);m.set(k,o)});
+  return m;
+}
+function loadOf(r,W){const o=(W||weekLoad()).get(bandKey(r));return o?o.sl:0}
+function loadLabel(r,W){const o=(W||weekLoad()).get(bandKey(r));return o&&r.kind==='band'?'今週 '+o.n+'回・計'+durLabel(o.sl):''}
 function defaultAddDay(){const t=mondayOf(new Date());if(t!==S.ws)return 0;return (new Date().getDay()+6)%7}
 function dayOcc(items){const occ=new Array(SLOTS).fill(false);items.filter(r=>r.status==='confirmed').forEach(r=>{for(let i=r.s;i<r.e;i++)occ[i]=true});return occ}
 function suggestDay(d,onlyBand){
   const items=live().filter(r=>r.day===d&&(r.status==='confirmed'||!onlyBand||r.kind==='band')),occ=dayOcc(items);
   const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:durOf(r)}));
   if(!pend.length||feasible(pend,occ))return null;
-  const cand=pend.filter(r=>r.dur>MIN_SLOTS).sort((a,b)=>rankOf(b.kind)-rankOf(a.kind)||(b.createdAt||0)-(a.createdAt||0));
+  const W=weekLoad();
+  const cand=pend.filter(r=>r.dur>MIN_SLOTS).sort((a,b)=>rankOf(b.kind)-rankOf(a.kind)||loadOf(b,W)-loadOf(a,W)||(b.createdAt||0)-(a.createdAt||0));
   const maxCut=cand.reduce((a,r)=>a+r.dur-MIN_SLOTS,0);
   const sols=[];let calls=0;const LIMIT=1500;
   const cut=new Array(cand.length).fill(0);
   function go(i,left){
-    if(sols.length>=6||calls>=LIMIT)return;
+    if(sols.length>=12||calls>=LIMIT)return;
     if(i===cand.length){
       if(left)return;calls++;
       const test=pend.map(r=>{const j=cand.indexOf(r);return j>=0&&cut[j]?Object.assign({},r,{dur:r.dur-cut[j]}):r});
@@ -1500,7 +1517,8 @@ function suggestDay(d,onlyBand){
     cut[i]=0;
   }
   for(let k=1;k<=maxCut&&!sols.length&&calls<LIMIT;k++)go(0,k);
-  sols.sort((a,b)=>a.cuts.length-b.cuts.length);
+  const fair=s=>s.cuts.reduce((a,c)=>a+loadOf(c.r,W),0)/s.cuts.length;
+  sols.sort((a,b)=>a.cuts.length-b.cuts.length||fair(b)-fair(a));
   if(sols.length)return {day:d,sols:sols.slice(0,3),n:pend.length};
   /* 全員1時間にしても入らないとき：それでも入らない希望を出す */
   const min=pend.map(r=>Object.assign({},r,{dur:Math.min(r.dur,MIN_SLOTS)})).sort(byDecision);
@@ -1555,14 +1573,16 @@ function conflictDay(d,onlyBand){
   while(grew){grew=false;pend.forEach(r=>{if(grp.has(r.id))return;if(pend.some(o=>grp.has(o.id)&&effOverlap(r,o))){grp.add(r.id);grew=true}})}
   const group=pend.filter(r=>grp.has(r.id)).sort((a,b)=>a.s-b.s||byDecision(a,b));
   /* 取り消し案：少ない人数で、優先度が低い・後から出した希望から */
-  const cand=group.slice().sort((a,b)=>rankOf(b.kind)-rankOf(a.kind)||(b.createdAt||0)-(a.createdAt||0));
+  const W=weekLoad();
+  const cand=group.slice().sort((a,b)=>rankOf(b.kind)-rankOf(a.kind)||loadOf(b,W)-loadOf(a,W)||(b.createdAt||0)-(a.createdAt||0));
   const sols=[];let calls=0;
   const tryK=(k,start,picked)=>{
-    if(sols.length>=3||calls>600)return;
+    if(sols.length>=8||calls>600)return;
     if(picked.length===k){calls++;const rest=pend.filter(r=>picked.indexOf(r)<0);const f=feasible(rest,occ);if(f)sols.push({rm:picked.slice(),place:f,rest:rest});return}
     for(let i=start;i<cand.length;i++){picked.push(cand[i]);tryK(k,i+1,picked);picked.pop()}
   };
   for(let k=1;k<=Math.min(3,cand.length)&&!sols.length;k++)tryK(k,0,[]);
+  sols.sort((a,b)=>b.rm.reduce((t,r)=>t+loadOf(r,W),0)/b.rm.length-a.rm.reduce((t,r)=>t+loadOf(r,W),0)/a.rm.length);sols.splice(3);
   const lo=Math.min.apply(null,group.map(r=>r.s)),hi=Math.max.apply(null,group.map(r=>r.e));
   const conf=items.filter(r=>r.status==='confirmed'&&r.s<hi&&lo<r.e);
   return {day:d,group:group,bad:new Set(bad.map(r=>r.id)),place:sim.place,sols:sols,conf:conf,lo:lo,hi:hi};
@@ -1579,7 +1599,7 @@ function dayChart(x){
     const row=h('div',{class:'tr'},[h('div',{class:'bar '+(isBad?'badbar':'okbar'),style:'left:'+pct(r.s)+';width:'+pct(x.lo+r.e-r.s)})]);
     if(ex)for(let i=r.s;i<r.e;i++)if(ex.has(i))row.append(h('div',{class:'exbar',style:'left:'+pct(i)+';width:'+pct(x.lo+1)}));
     if(t!=null)row.append(h('div',{class:'pl okpl',style:'left:'+pct(t)+';width:'+pct(x.lo+r.dur)}));
-    wrap.append(h('div',{class:'lbl'},[h('b',{text:nm(r)}),'　'+KINDS[r.kind]+'・'+durLabel(r.dur)+'　',h('span',{class:'chip '+(isBad?'rejected':'confirmed'),text:isBad?'入らない':'入る '+tm(t)+'–'+tm(t+r.dur)})]),row);
+    wrap.append(h('div',{class:'lbl'},[h('b',{text:nm(r)}),'　'+KINDS[r.kind]+'・'+durLabel(r.dur)+(loadLabel(r)?'（'+loadLabel(r)+'）':'')+'　',h('span',{class:'chip '+(isBad?'rejected':'confirmed'),text:isBad?'入らない':'入る '+tm(t)+'–'+tm(t+r.dur)})]),row);
   });
   return wrap;
 }
@@ -1588,7 +1608,15 @@ function openConflicts(onlyBand){
   S.cfOnlyBand=onlyBand;
   const res=[0,1,2,3,4,5,6].map(d=>conflictDay(d,onlyBand)).filter(Boolean);
   const seg=h('div',{class:'seg',style:'align-self:flex-start'},[[true,'バンド練習だけ'],[false,'全部']].map(o=>h('button',{'aria-pressed':String(onlyBand===o[0]),onclick:()=>openConflicts(o[0]),text:o[1]})));
-  const kids=[h('h3',{text:'被りの整理'}),seg,
+  const W=weekLoad(),arr=[...W.values()].sort((a,b)=>b.sl-a.sl);
+  let panel=null;
+  if(arr.length){
+    const mx=arr[0].sl,mn=arr[arr.length-1].sl,avg=arr.reduce((a,o)=>a+o.sl,0)/arr.length;
+    panel=h('details',{class:'wload'},[h('summary',{text:'バンドごとの今週の練習（'+arr.length+'バンド・最大 '+durLabel(mx)+'／最小 '+durLabel(mn)+'）'}),
+      h('div',{class:'wl'},arr.map(o=>h('div',{class:'wlr'+(o.sl>avg+1?' hi':o.sl<avg-1?' lo':'')},[h('span',{class:'wn',text:o.name}),h('span',{class:'wb'},[h('i',{style:'width:'+(o.sl/mx*100)+'%'})]),h('span',{class:'wt',text:o.n+'回・'+durLabel(o.sl)})]))),
+      h('div',{class:'rank',text:'確定＋希望の練習時間です。削る・取り消す案は、練習が多いバンドから先に出します。'})]);
+  }
+  const kids=[h('h3',{text:'被りの整理'}),seg,panel,
     h('p',{class:'rank',text:'点線の枠＝希望の時間帯、色の帯＝入る場所、赤＝入りきらない希望、灰色の斜線＝除外した時間。優先度順（'+order().map(k=>KINDS[k]).join('→')+'、同じなら先に出した順）で並べた結果です。'})];
   if(!res.length){kids.push(h('div',{class:'clashbox okbox'},[h('div',{class:'ttl',text:onlyBand?'バンド練習の希望は、被らずに全部入ります':'今の希望は、全部入ります'})]));
     if(S.isAdmin&&onlyBand&&S.reqs.some(r=>r.status==='pending'&&r.kind==='band')){const n=S.reqs.filter(r=>r.status==='pending'&&r.kind==='band').length;const b=h('button',{class:'btn primary',text:'バンド練習だけ先に確定（'+n+'件）',onclick:async()=>{if(b.dataset.a!=='1'){b.dataset.a='1';b.textContent='もう一度押すとバンド練習を確定';return}b.disabled=true;closeSheet();await confirmBand()}});kids.push(h('div',{class:'row'},[b]))}}
@@ -1601,7 +1629,7 @@ function openConflicts(onlyBand){
         h('div',{class:'hint',text:'30分ずつ、1時間までしか短くしません。削る量が少ない案から。'})]);
       cut.sols.forEach((sol,i)=>{
         const times=sol.test.slice().sort((a,b)=>sol.place.get(a.id)-sol.place.get(b.id)).map(r=>{const t=sol.place.get(r.id),c=sol.cuts.find(z=>z.r.id===r.id);return h('div',{class:'stime'+(c?' cut':'')},[h('span',{class:'tm',text:tm(t)+'–'+tm(t+r.dur)}),h('span',{text:nm(r)+(c?'（'+durLabel(c.from)+'→'+durLabel(c.to)+'）':'')})])});
-        const kidsC=[h('div',null,[h('b',{text:'調整'+(i+1)+'　'}),sol.cuts.map(c=>nm(c.r)+' を '+durLabel(c.from)+'→'+durLabel(c.to)).join('、')]),
+        const kidsC=[h('div',null,[h('b',{text:'調整'+(i+1)+'　'}),sol.cuts.map(c=>nm(c.r)+' を '+durLabel(c.from)+'→'+durLabel(c.to)+(loadLabel(c.r)?'（'+loadLabel(c.r)+'）':'')).join('、')]),
           h('div',{class:'stimes'},times)];
         if(S.isAdmin){const b=h('button',{class:'btn sm primary',text:'この調整にする',onclick:async()=>{
           if(b.dataset.a!=='1'){b.dataset.a='1';b.textContent='もう一度押すと練習時間を変えます';return}
@@ -1613,7 +1641,7 @@ function openConflicts(onlyBand){
     if(x.sols.length){
       box.append(h('div',{class:'shead'},[h('b',{text:canCut?'または、取り消せば全員入る案':'取り消せば全員入る案'})]));
       x.sols.forEach((sol,i)=>{
-        const names=sol.rm.map(r=>nm(r)+'（'+KINDS[r.kind]+'・'+tm(r.s)+'–'+tm(r.e)+'）').join('、');
+        const names=sol.rm.map(r=>nm(r)+'（'+tm(r.s)+'–'+tm(r.e)+(loadLabel(r)?'・'+loadLabel(r):'')+'）').join('、');
         const kidsS=[h('div',null,[h('b',{text:'案'+(i+1)+'　'}),names+' を取り消すと、残りは全員入ります'])];
         if(S.isAdmin){const b=h('button',{class:'btn sm',text:'この'+sol.rm.length+'件を見送りにする',onclick:async()=>{
           if(b.dataset.a!=='1'){b.dataset.a='1';b.textContent='もう一度押すと見送りにします';return}
