@@ -352,7 +352,7 @@ input.num{width:6em}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../firebase-config.js"></script>
 <script>
-window.__BUILD='20261027145443';
+window.__BUILD='20261031123342';
 (function(){
 'use strict';
 const SLOTS=23, H=24;  /* 9:00〜20:30（30分×23コマ）。前に入った21:00までの予約はデータのまま残して表示だけ20:30で切る */
@@ -554,6 +554,7 @@ async function api(fn){
     case 'deleteReq':return dbDelete(a[0]);
     case 'saveCfg':return dbSaveCfg(a[0],a[1]);
     case 'confirmAll':return dbConfirmAll(a[0]);
+    case 'confirmKind':return dbConfirmKind(a[0],a[1]);
     case 'rebuildSheet':exportImage();return true;
     case 'archiveOld':return {moved:0};
     default:throw new Error('未対応の操作です：'+fn);
@@ -620,6 +621,23 @@ async function dbSaveCfg(ws,patch){
   const c={phase:patch.phase||phase(),order:patch.order||order(),maxSlots:patch.maxSlots||maxSlots()};
   try{await wref(ws).child('cfg').set(c)}catch(e){throw fbErr(e)}
   return true;
+}
+/* ある種別（バンド練習など）の希望だけ先に確定する。ほかの種別の希望は無視して並べ、希望のまま残す */
+async function dbConfirmKind(ws,kind){
+  const place=new Map();
+  for(let d=0;d<7;d++){const r=simulate(S.reqs.filter(x=>x.day===d&&(x.status==='confirmed'||(x.status==='pending'&&x.kind===kind))));r.place.forEach((v,k)=>place.set(k,v))}
+  const up={};let ok=0,ng=0;
+  S.reqs.filter(r=>r.status==='pending'&&r.kind===kind).forEach(r=>{
+    const t=place.get(r.id);
+    if(t==null){ng++;return}
+    ok++;const d=durOf(r);
+    const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d,ex:''});
+    up['reqs/'+r.id]=clean(nx);
+    slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});
+  });
+  if(!ok)return {ok:0,ng:ng};
+  try{await wref(ws).update(up)}catch(e){throw fbErr(e,'slot')}
+  return {ok:ok,ng:ng};
 }
 async function dbConfirmAll(ws){
   computePlan();
@@ -772,7 +790,7 @@ function renderBanner(){
   b.replaceChildren(msg);
   /* 希望で週間表が埋まっていても出せるように、タップ以外の入口も置く */
   if(p==='request'&&!S.fail)b.append(h('button',{class:'btn primary',onclick:()=>openAdd(defaultAddDay(),0),text:'＋ 希望を出す'}));
-  if(S.isAdmin&&p==='request'&&!S.fail)b.append(h('button',{class:'btn',onclick:openSuggest,text:'調整の提案を見る'}));
+  if(S.isAdmin&&p==='request'&&!S.fail)b.append(h('button',{class:'btn',onclick:openSuggest,text:'調整の提案を見る'}),bandConfirmBtn(true));
   if(S.isAdmin&&p==='free'&&!S.fail)b.append(h('button',{class:'btn primary',onclick:exportImage,text:'練習表を画像で送る'}));
   if(S.isAdmin&&p==='closed'&&!S.loading)b.append(h('button',{class:'btn primary',onclick:()=>saveCfg({phase:'request'}),text:'募集を開始する'}));
 }
@@ -1143,6 +1161,19 @@ async function autoConfirm(){
     toast('確定 '+r.ok+'件'+(r.ng?'・入りきらず見送り '+r.ng+'件':'')+'。自由予約に切り替えました');
   }catch(e){}
 }
+async function confirmBand(){
+  toast('バンド練習を確定しています…');
+  try{
+    const r=await mutate('confirmKind',[S.ws,'band']);
+    toast(r.ok?'バンド練習 '+r.ok+'件を確定しました'+(r.ng?'（入りきらない '+r.ng+'件は希望のまま）':'')+'。ほかは希望のままです':'確定できるバンド練習の希望がありません');
+  }catch(e){}
+}
+function bandConfirmBtn(small){
+  const n=S.reqs.filter(r=>r.status==='pending'&&r.kind==='band').length;
+  const armed=S.armK;
+  return h('button',{class:'btn'+(small?'':' primary'),disabled:n===0||null,onclick:()=>{if(!armed){S.armK=true;render();return}S.armK=false;confirmBand()},
+    text:armed?'もう一度押すとバンド練習を確定':'バンド練習だけ先に確定（'+n+'件）'});
+}
 /* 部会（毎週ではない土曜 12:30〜13:30）をワンタップで入れる */
 function meetingCard(){
   const sat=addDays(S.ws,5),lb=md(sat)+'（土）12:30〜13:30';
@@ -1188,7 +1219,9 @@ function adminView(){
     if(!S.armed){S.armed=true;render();return}
     S.armed=false;autoConfirm();
   },text:S.armed?'もう一度押すと確定します':'優先度順に自動で確定（希望 '+n+'件）'});
-  const kids=[h('h2',{text:'部会で確定する'}),h('p',{text:'優先度の高い順に、同じ優先度は先に出した順に、希望の時間帯の中で重ならないよう自動で並べて確定します。時間帯の中に入りきらない希望は「見送り」になり、希望一覧から個別に直せます。確定後は自由予約に切り替わります。'}),btn];
+  const kids=[h('h2',{text:'部会で確定する'}),
+    h('p',{text:'バンド練習だけ先に確定することもできます。ドラム練習・その他の希望はそのまま残るので、あとで調整してから下のボタンで確定してください。'}),
+    h('div',{class:'row'},[bandConfirmBtn(false),S.armK?h('button',{class:'btn sm',onclick:()=>{S.armK=false;render()},text:'やめる'}):null]),h('p',{text:'優先度の高い順に、同じ優先度は先に出した順に、希望の時間帯の中で重ならないよう自動で並べて確定します。時間帯の中に入りきらない希望は「見送り」になり、希望一覧から個別に直せます。確定後は自由予約に切り替わります。'}),btn];
   if(S.armed)kids.push(h('button',{class:'btn sm',onclick:()=>{S.armed=false;render()},text:'やめる'}));
   return h('div',{style:'display:flex;flex-direction:column;gap:12px'},[c1,meetingCard(),c2,cMax,h('div',{class:'card'},kids),
     h('div',{class:'card'},[h('h2',{text:'練習表を画像で送る'}),

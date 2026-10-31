@@ -7,6 +7,19 @@ async function autoConfirm(){
     toast('確定 '+r.ok+'件'+(r.ng?'・入りきらず見送り '+r.ng+'件':'')+'。自由予約に切り替えました');
   }catch(e){}
 }
+async function confirmBand(){
+  toast('バンド練習を確定しています…');
+  try{
+    const r=await mutate('confirmKind',[S.ws,'band']);
+    toast(r.ok?'バンド練習 '+r.ok+'件を確定しました'+(r.ng?'（入りきらない '+r.ng+'件は希望のまま）':'')+'。ほかは希望のままです':'確定できるバンド練習の希望がありません');
+  }catch(e){}
+}
+function bandConfirmBtn(small){
+  const n=S.reqs.filter(r=>r.status==='pending'&&r.kind==='band').length;
+  const armed=S.armK;
+  return h('button',{class:'btn'+(small?'':' primary'),disabled:n===0||null,onclick:()=>{if(!armed){S.armK=true;render();return}S.armK=false;confirmBand()},
+    text:armed?'もう一度押すとバンド練習を確定':'バンド練習だけ先に確定（'+n+'件）'});
+}
 /* 部会（毎週ではない土曜 12:30〜13:30）をワンタップで入れる */
 function meetingCard(){
   const sat=addDays(S.ws,5),lb=md(sat)+'（土）12:30〜13:30';
@@ -52,7 +65,9 @@ function adminView(){
     if(!S.armed){S.armed=true;render();return}
     S.armed=false;autoConfirm();
   },text:S.armed?'もう一度押すと確定します':'優先度順に自動で確定（希望 '+n+'件）'});
-  const kids=[h('h2',{text:'部会で確定する'}),h('p',{text:'優先度の高い順に、同じ優先度は先に出した順に、希望の時間帯の中で重ならないよう自動で並べて確定します。時間帯の中に入りきらない希望は「見送り」になり、希望一覧から個別に直せます。確定後は自由予約に切り替わります。'}),btn];
+  const kids=[h('h2',{text:'部会で確定する'}),
+    h('p',{text:'バンド練習だけ先に確定することもできます。ドラム練習・その他の希望はそのまま残るので、あとで調整してから下のボタンで確定してください。'}),
+    h('div',{class:'row'},[bandConfirmBtn(false),S.armK?h('button',{class:'btn sm',onclick:()=>{S.armK=false;render()},text:'やめる'}):null]),h('p',{text:'優先度の高い順に、同じ優先度は先に出した順に、希望の時間帯の中で重ならないよう自動で並べて確定します。時間帯の中に入りきらない希望は「見送り」になり、希望一覧から個別に直せます。確定後は自由予約に切り替わります。'}),btn];
   if(S.armed)kids.push(h('button',{class:'btn sm',onclick:()=>{S.armed=false;render()},text:'やめる'}));
   return h('div',{style:'display:flex;flex-direction:column;gap:12px'},[c1,meetingCard(),c2,cMax,h('div',{class:'card'},kids),
     h('div',{class:'card'},[h('h2',{text:'練習表を画像で送る'}),

@@ -72,6 +72,7 @@ async function api(fn){
     case 'deleteReq':return dbDelete(a[0]);
     case 'saveCfg':return dbSaveCfg(a[0],a[1]);
     case 'confirmAll':return dbConfirmAll(a[0]);
+    case 'confirmKind':return dbConfirmKind(a[0],a[1]);
     case 'rebuildSheet':exportImage();return true;
     case 'archiveOld':return {moved:0};
     default:throw new Error('未対応の操作です：'+fn);
@@ -138,6 +139,23 @@ async function dbSaveCfg(ws,patch){
   const c={phase:patch.phase||phase(),order:patch.order||order(),maxSlots:patch.maxSlots||maxSlots()};
   try{await wref(ws).child('cfg').set(c)}catch(e){throw fbErr(e)}
   return true;
+}
+/* ある種別（バンド練習など）の希望だけ先に確定する。ほかの種別の希望は無視して並べ、希望のまま残す */
+async function dbConfirmKind(ws,kind){
+  const place=new Map();
+  for(let d=0;d<7;d++){const r=simulate(S.reqs.filter(x=>x.day===d&&(x.status==='confirmed'||(x.status==='pending'&&x.kind===kind))));r.place.forEach((v,k)=>place.set(k,v))}
+  const up={};let ok=0,ng=0;
+  S.reqs.filter(r=>r.status==='pending'&&r.kind===kind).forEach(r=>{
+    const t=place.get(r.id);
+    if(t==null){ng++;return}
+    ok++;const d=durOf(r);
+    const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d,ex:''});
+    up['reqs/'+r.id]=clean(nx);
+    slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});
+  });
+  if(!ok)return {ok:0,ng:ng};
+  try{await wref(ws).update(up)}catch(e){throw fbErr(e,'slot')}
+  return {ok:ok,ng:ng};
 }
 async function dbConfirmAll(ws){
   computePlan();
