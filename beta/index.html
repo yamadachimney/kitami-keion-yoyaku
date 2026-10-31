@@ -364,7 +364,7 @@ input.num{width:6em}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../firebase-config.js"></script>
 <script>
-window.__BUILD='20261031131944';
+window.__BUILD='20261031132108';
 (function(){
 'use strict';
 const SLOTS=23, H=24;  /* 9:00〜20:30（30分×23コマ）。前に入った21:00までの予約はデータのまま残して表示だけ20:30で切る */
@@ -1527,7 +1527,7 @@ function suggestDay(d,onlyBand){
   return {day:d,none:true,out:out,n:pend.length};
 }
 function openSuggest(){
-  const res=[0,1,2,3,4,5,6].map(suggestDay).filter(Boolean);
+  const res=[0,1,2,3,4,5,6].map(d=>suggestDay(d,false)).filter(Boolean);
   const kids=[h('h3',{text:'調整の提案'}),
     h('p',{class:'rank',text:'入りきらない日だけ出ます。練習時間を30分ずつ削って全員入る案です（1時間より短くはしません）。削る量が少ない案から並んでいます。'})];
   if(!res.length)kids.push(h('div',{class:'clashbox okbox'},[h('div',{class:'ttl',text:'今の希望なら、削らなくても全員入ります'})]));
