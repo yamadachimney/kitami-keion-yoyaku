@@ -363,7 +363,7 @@ input.num{width:6em}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
-window.__BUILD='20261031132114';
+window.__BUILD='20261031132141';
 (function(){
 'use strict';
 const SLOTS=23, H=24;  /* 9:00〜20:30（30分×23コマ）。前に入った21:00までの予約はデータのまま残して表示だけ20:30で切る */
@@ -1518,7 +1518,8 @@ function suggestDay(d,onlyBand){
   }
   for(let k=1;k<=maxCut&&!sols.length&&calls<LIMIT;k++)go(0,k);
   const fair=s=>s.cuts.reduce((a,c)=>a+loadOf(c.r,W),0)/s.cuts.length;
-  sols.sort((a,b)=>a.cuts.length-b.cuts.length||fair(b)-fair(a));
+  const pri=s=>s.cuts.reduce((a,c)=>a+rankOf(c.r.kind),0)/s.cuts.length;
+  sols.sort((a,b)=>a.cuts.length-b.cuts.length||pri(b)-pri(a)||fair(b)-fair(a));
   if(sols.length)return {day:d,sols:sols.slice(0,3),n:pend.length};
   /* 全員1時間にしても入らないとき：それでも入らない希望を出す */
   const min=pend.map(r=>Object.assign({},r,{dur:Math.min(r.dur,MIN_SLOTS)})).sort(byDecision);
@@ -1582,7 +1583,8 @@ function conflictDay(d,onlyBand){
     for(let i=start;i<cand.length;i++){picked.push(cand[i]);tryK(k,i+1,picked);picked.pop()}
   };
   for(let k=1;k<=Math.min(3,cand.length)&&!sols.length;k++)tryK(k,0,[]);
-  sols.sort((a,b)=>b.rm.reduce((t,r)=>t+loadOf(r,W),0)/b.rm.length-a.rm.reduce((t,r)=>t+loadOf(r,W),0)/a.rm.length);sols.splice(3);
+  const rpri=s=>s.rm.reduce((t,r)=>t+rankOf(r.kind),0)/s.rm.length,rfair=s=>s.rm.reduce((t,r)=>t+loadOf(r,W),0)/s.rm.length;
+  sols.sort((a,b)=>rpri(b)-rpri(a)||rfair(b)-rfair(a));sols.splice(3);
   const lo=Math.min.apply(null,group.map(r=>r.s)),hi=Math.max.apply(null,group.map(r=>r.e));
   const conf=items.filter(r=>r.status==='confirmed'&&r.s<hi&&lo<r.e);
   return {day:d,group:group,bad:new Set(bad.map(r=>r.id)),place:sim.place,sols:sols,conf:conf,lo:lo,hi:hi};
