@@ -18,7 +18,7 @@ function bandConfirmBtn(small){
   const n=S.reqs.filter(r=>r.status==='pending'&&r.kind==='band').length;
   const armed=S.armK;
   return h('button',{class:'btn'+(small?'':' primary'),disabled:n===0||null,onclick:()=>{if(!armed){S.armK=true;render();return}S.armK=false;confirmBand()},
-    text:armed?'もう一度押すとバンド練習を確定':'バンド練習だけ先に確定（'+n+'件）'});
+    text:armed?'もう一度押すとバンド練習を確定':'バンド練習だけ先に確定（'+n+'件'+(capOf()?'・各'+durLabel(capOf())+'まで':'')+'）'});
 }
 /* 部会（毎週ではない土曜 12:30〜13:30）をワンタップで入れる */
 function meetingCard(){
@@ -65,7 +65,14 @@ function adminView(){
     if(!S.armed){S.armed=true;render();return}
     S.armed=false;autoConfirm();
   },text:S.armed?'もう一度押すと確定します':'優先度順に自動で確定（希望 '+n+'件）'});
-  const kids=[h('h2',{text:'部会で確定する'}),
+  const capSel=h('select',{'aria-label':'確定するときの練習時間'},[[0,'希望どおり'],[2,'1時間'],[3,'1時間30分'],[4,'2時間']].map(o=>h('option',{value:o[0],text:o[1]})));
+  capSel.value=String(capOf());
+  capSel.addEventListener('change',()=>{lsSet('kitami-cap-'+S.ws,capSel.value);render()});
+  const pendN=S.reqs.filter(r=>r.status==='pending').length,badN=S.plan.bad.size;
+  const capCard=h('div',{class:'clashbox'+(badN?'':' okbox')},[h('div',{class:'row',style:'gap:8px'},[h('b',{text:'確定するときの練習時間'}),capSel,h('span',{class:'rank',text:'までにそろえる'})]),
+    h('div',{class:'sub',text:pendN?'この設定だと、希望 '+pendN+'件のうち '+(pendN-badN)+'件が入ります'+(badN?'（入らない '+badN+'件は見送り）':'（全部入ります）'):'まだ希望がありません'}),
+    h('div',{class:'hint',text:'2時間の希望でも、ここで「1時間」にすると全員1時間で確定します。週間表の「仮」の時間もこの設定で表示されます（この端末の運営画面だけ）。'})]);
+  const kids=[h('h2',{text:'部会で確定する'}),capCard,
     h('p',{text:'バンド練習だけ先に確定することもできます。ドラム練習・その他の希望はそのまま残るので、あとで調整してから下のボタンで確定してください。'}),
     h('div',{class:'row'},[bandConfirmBtn(false),S.armK?h('button',{class:'btn sm',onclick:()=>{S.armK=false;render()},text:'やめる'}):null]),h('p',{text:'優先度の高い順に、同じ優先度は先に出した順に、希望の時間帯の中で重ならないよう自動で並べて確定します。時間帯の中に入りきらない希望は「見送り」になり、希望一覧から個別に直せます。確定後は自由予約に切り替わります。'}),btn];
   if(S.armed)kids.push(h('button',{class:'btn sm',onclick:()=>{S.armed=false;render()},text:'やめる'}));

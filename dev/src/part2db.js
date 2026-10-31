@@ -143,12 +143,12 @@ async function dbSaveCfg(ws,patch){
 /* ある種別（バンド練習など）の希望だけ先に確定する。ほかの種別の希望は無視して並べ、希望のまま残す */
 async function dbConfirmKind(ws,kind){
   const place=new Map();
-  for(let d=0;d<7;d++){const r=simulate(S.reqs.filter(x=>x.day===d&&(x.status==='confirmed'||(x.status==='pending'&&x.kind===kind))));r.place.forEach((v,k)=>place.set(k,v))}
+  for(let d=0;d<7;d++){const r=simulate(S.reqs.filter(x=>x.day===d&&(x.status==='confirmed'||(x.status==='pending'&&x.kind===kind))).map(capDur));r.place.forEach((v,k)=>place.set(k,v))}
   const up={};let ok=0,ng=0;
   S.reqs.filter(r=>r.status==='pending'&&r.kind===kind).forEach(r=>{
     const t=place.get(r.id);
     if(t==null){ng++;return}
-    ok++;const d=durOf(r);
+    ok++;const d=durOf(capDur(r));
     const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d,ex:''});
     up['reqs/'+r.id]=clean(nx);
     slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});
@@ -161,10 +161,10 @@ async function dbConfirmAll(ws){
   computePlan();
   const up={};let ok=0,ng=0;
   S.reqs.filter(r=>r.status==='pending').forEach(r=>{
-    const t=S.plan.place.get(r.id);
+    const t=S.plan.place.get(r.id),rc=capDur(r);
     if(t==null){ng++;up['reqs/'+r.id+'/status']='rejected'}
     else{
-      ok++;const d=durOf(r);
+      ok++;const d=durOf(rc);
       const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d,ex:''});
       up['reqs/'+r.id]=clean(nx);
       slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});

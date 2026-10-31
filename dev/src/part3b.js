@@ -46,7 +46,7 @@ function timeline(r,cs,bad){
   const ov=c=>h('div',{class:'ov'+(bad?'':' ok'),style:'left:'+pct(c.s)+';width:'+pct(c.e-c.s)});
   const mineRow=h('div',{class:'tr'},[h('div',{class:'bar '+cc(r),style:'left:'+pct(r.s)+';width:'+pct(r.e-r.s)})]);
   const t0=S.plan.place.get(r.id);
-  if(t0!=null)mineRow.append(h('div',{class:'pl '+cc(r),style:'left:'+pct(t0)+';width:'+pct(durOf(r))}));
+  if(t0!=null)mineRow.append(h('div',{class:'pl '+cc(r),style:'left:'+pct(t0)+';width:'+pct(pdur(r))}));
   cs.forEach(c=>mineRow.append(ov(c)));
   wrap.append(h('div',{class:'lbl',text:'この希望の時間帯 '+range(r)+(t0!=null?'（色の帯＝仮の配置）':'')}),mineRow);
   cs.forEach(c=>{
@@ -62,7 +62,7 @@ function clashBox(r){
   if(!cs.length)return null;
   const bad=conflicts(r),t0=S.plan.place.get(r.id);
   const box=h('div',{class:'clashbox'+(bad?'':' okbox')},[h('div',{class:'ttl',text:bad?'時間帯が被っていて、このままだと入りきりません（'+cs.length+'件）':'時間帯は被っていますが、調整すれば収まります（'+cs.length+'件）'})]);
-  if(!bad&&t0!=null)box.append(h('div',{class:'sub',text:'仮の配置：'+tm(t0)+'–'+tm(t0+durOf(r))+'（部会で確定します）'}));
+  if(!bad&&t0!=null)box.append(h('div',{class:'sub',text:'仮の配置：'+tm(t0)+'–'+tm(t0+pdur(r))+'（部会で確定します）'}));
   box.append(timeline(r,cs,bad));
   cs.forEach(c=>box.append(h('div',{class:'cl '+cc(c.o)},[
     h('div',{class:'dot'}),
@@ -102,7 +102,7 @@ function listView(){
       h('div',{class:'dot'}),
       h('div',{style:'min-width:0'},[
         h('div',{class:'nm',text:nm(r)}),
-        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&exText(r)?'　'+exText(r):'')+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+durOf(r)):'')})
+        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&exText(r)?'　'+exText(r):'')+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+pdur(r)):'')})
       ]),
       h('div',{class:'acts'},[h('span',{class:'chip '+r.status,text:ST[r.status]}),
         r.status==='pending'&&conflicts(r)?h('span',{class:'chip rejected',text:'被り'}):(r.status==='pending'&&clashes(r).length?h('span',{class:'chip pending',text:'調整OK'}):null)]),

@@ -9,7 +9,7 @@ function openDetail(id){
     h('div',{class:'rank',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+KINDS[r.kind]+(r.status==='pending'?'　希望の時間帯・練習 '+durLabel(durOf(r)):'')+(r.status==='pending'&&exText(r)?'　'+exText(r):'')})
   ];
   const t0=S.plan.place.get(r.id);
-  if(r.status==='pending'&&t0!=null)kids.push(h('div',{class:'rank',text:'仮の配置：'+tm(t0)+'–'+tm(t0+durOf(r))+'（部会で確定します）'}));
+  if(r.status==='pending'&&t0!=null)kids.push(h('div',{class:'rank',text:'仮の配置：'+tm(t0)+'–'+tm(t0+pdur(r))+'（部会で確定します）'}));
   const cb=r.status==='rejected'?null:clashBox(r);
   if(cb)kids.push(cb);
   const cal=calButtons(r);if(cal)kids.push(cal);

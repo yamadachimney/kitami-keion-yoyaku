@@ -105,10 +105,14 @@ function simulate(items){
   return {place:cur,bad:bad};
 }
 /* 表示用の仮配置（優先度順・先着順で、時間帯の中に並べる） */
+/* 確定するときの練習時間の上限（運営がその週だけ決める。0＝希望どおり） */
+function capOf(){const v=+lsGet('kitami-cap-'+S.ws);return S.isAdmin&&v>0?v:0}
+function pdur(r){return durOf(capDur(r))}
+function capDur(r){const c=capOf();return c&&r.status==='pending'?Object.assign({},r,{dur:Math.min(durOf(r),c)}):r}
 function computePlan(){
   const place=new Map(),bad=new Set();
   for(let d=0;d<7;d++){
-    const r=simulate(S.reqs.filter(x=>x.day===d&&x.status!=='rejected'));
+    const r=simulate(S.reqs.filter(x=>x.day===d&&x.status!=='rejected').map(capDur));
     r.place.forEach((v,k)=>place.set(k,v));r.bad.forEach(k=>bad.add(k));
   }
   S.plan={place:place,bad:bad};

@@ -363,7 +363,7 @@ input.num{width:6em}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
-window.__BUILD='20261031132141';
+window.__BUILD='20261031132928';
 (function(){
 'use strict';
 const SLOTS=23, H=24;  /* 9:00〜20:30（30分×23コマ）。前に入った21:00までの予約はデータのまま残して表示だけ20:30で切る */
@@ -471,10 +471,14 @@ function simulate(items){
   return {place:cur,bad:bad};
 }
 /* 表示用の仮配置（優先度順・先着順で、時間帯の中に並べる） */
+/* 確定するときの練習時間の上限（運営がその週だけ決める。0＝希望どおり） */
+function capOf(){const v=+lsGet('kitami-cap-'+S.ws);return S.isAdmin&&v>0?v:0}
+function pdur(r){return durOf(capDur(r))}
+function capDur(r){const c=capOf();return c&&r.status==='pending'?Object.assign({},r,{dur:Math.min(durOf(r),c)}):r}
 function computePlan(){
   const place=new Map(),bad=new Set();
   for(let d=0;d<7;d++){
-    const r=simulate(S.reqs.filter(x=>x.day===d&&x.status!=='rejected'));
+    const r=simulate(S.reqs.filter(x=>x.day===d&&x.status!=='rejected').map(capDur));
     r.place.forEach((v,k)=>place.set(k,v));r.bad.forEach(k=>bad.add(k));
   }
   S.plan={place:place,bad:bad};
@@ -636,12 +640,12 @@ async function dbSaveCfg(ws,patch){
 /* ある種別（バンド練習など）の希望だけ先に確定する。ほかの種別の希望は無視して並べ、希望のまま残す */
 async function dbConfirmKind(ws,kind){
   const place=new Map();
-  for(let d=0;d<7;d++){const r=simulate(S.reqs.filter(x=>x.day===d&&(x.status==='confirmed'||(x.status==='pending'&&x.kind===kind))));r.place.forEach((v,k)=>place.set(k,v))}
+  for(let d=0;d<7;d++){const r=simulate(S.reqs.filter(x=>x.day===d&&(x.status==='confirmed'||(x.status==='pending'&&x.kind===kind))).map(capDur));r.place.forEach((v,k)=>place.set(k,v))}
   const up={};let ok=0,ng=0;
   S.reqs.filter(r=>r.status==='pending'&&r.kind===kind).forEach(r=>{
     const t=place.get(r.id);
     if(t==null){ng++;return}
-    ok++;const d=durOf(r);
+    ok++;const d=durOf(capDur(r));
     const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d,ex:''});
     up['reqs/'+r.id]=clean(nx);
     slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});
@@ -654,10 +658,10 @@ async function dbConfirmAll(ws){
   computePlan();
   const up={};let ok=0,ng=0;
   S.reqs.filter(r=>r.status==='pending').forEach(r=>{
-    const t=S.plan.place.get(r.id);
+    const t=S.plan.place.get(r.id),rc=capDur(r);
     if(t==null){ng++;up['reqs/'+r.id+'/status']='rejected'}
     else{
-      ok++;const d=durOf(r);
+      ok++;const d=durOf(rc);
       const nx=Object.assign({},r,{status:'confirmed',ws:r.s,we:r.e,s:t,e:t+d,dur:d,ex:''});
       up['reqs/'+r.id]=clean(nx);
       slotKeys(nx).forEach(k=>{up['slots/'+k]=r.id});
@@ -822,7 +826,7 @@ function block(r,lane,n){
   let kids;
   if(flex&&t0!=null){
     /* 時間帯（点線の枠）の中に、仮の配置を帯で重ねる */
-    const d=durOf(r);
+    const d=pdur(r);
     kids=[h('div',{class:'plan',style:'top:'+((t0-r.s)*H)+'px;height:'+(d*H-1)+'px'},[
       h('span',{class:'n',text:nm(r)}),
       d>=2?h('span',{class:'t',text:'仮 '+tm(t0)+'–'+tm(t0+d)}):null
@@ -884,7 +888,7 @@ function actions(r,done){
   if(S.isAdmin){
     if(r.status==='pending'){
       a.push(h('button',{class:'btn sm primary',onclick:async()=>{
-        const d=durOf(r),t=S.plan.place.get(r.id),s=t!=null?t:r.s,e=s+d;
+        const d=pdur(r),t=S.plan.place.get(r.id),s=t!=null?t:r.s,e=s+d;
         if(S.reqs.some(o=>o.status==='confirmed'&&o.id!==r.id&&overlap(o,{day:r.day,s:s,e:e}))){toast('確定済みの予約と重なっています');return}
         await patchReq(r.id,{status:'confirmed',s:s,e:e,ws:r.s,we:r.e});after();
       },text:'確定'}));
@@ -960,7 +964,7 @@ function timeline(r,cs,bad){
   const ov=c=>h('div',{class:'ov'+(bad?'':' ok'),style:'left:'+pct(c.s)+';width:'+pct(c.e-c.s)});
   const mineRow=h('div',{class:'tr'},[h('div',{class:'bar '+cc(r),style:'left:'+pct(r.s)+';width:'+pct(r.e-r.s)})]);
   const t0=S.plan.place.get(r.id);
-  if(t0!=null)mineRow.append(h('div',{class:'pl '+cc(r),style:'left:'+pct(t0)+';width:'+pct(durOf(r))}));
+  if(t0!=null)mineRow.append(h('div',{class:'pl '+cc(r),style:'left:'+pct(t0)+';width:'+pct(pdur(r))}));
   cs.forEach(c=>mineRow.append(ov(c)));
   wrap.append(h('div',{class:'lbl',text:'この希望の時間帯 '+range(r)+(t0!=null?'（色の帯＝仮の配置）':'')}),mineRow);
   cs.forEach(c=>{
@@ -976,7 +980,7 @@ function clashBox(r){
   if(!cs.length)return null;
   const bad=conflicts(r),t0=S.plan.place.get(r.id);
   const box=h('div',{class:'clashbox'+(bad?'':' okbox')},[h('div',{class:'ttl',text:bad?'時間帯が被っていて、このままだと入りきりません（'+cs.length+'件）':'時間帯は被っていますが、調整すれば収まります（'+cs.length+'件）'})]);
-  if(!bad&&t0!=null)box.append(h('div',{class:'sub',text:'仮の配置：'+tm(t0)+'–'+tm(t0+durOf(r))+'（部会で確定します）'}));
+  if(!bad&&t0!=null)box.append(h('div',{class:'sub',text:'仮の配置：'+tm(t0)+'–'+tm(t0+pdur(r))+'（部会で確定します）'}));
   box.append(timeline(r,cs,bad));
   cs.forEach(c=>box.append(h('div',{class:'cl '+cc(c.o)},[
     h('div',{class:'dot'}),
@@ -1016,7 +1020,7 @@ function listView(){
       h('div',{class:'dot'}),
       h('div',{style:'min-width:0'},[
         h('div',{class:'nm',text:nm(r)}),
-        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&exText(r)?'　'+exText(r):'')+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+durOf(r)):'')})
+        h('div',{class:'meta',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+DAYS[r.day]+'曜 '+md(addDays(S.ws,r.day))+'　'+(r.status==='pending'?'時間帯 '+range(r)+'（'+durLabel(durOf(r))+'）':range(r))+'　'+KINDS[r.kind]+(r.status==='pending'&&exText(r)?'　'+exText(r):'')+(r.status==='pending'&&S.plan.place.has(r.id)?'　仮 '+tm(S.plan.place.get(r.id))+'–'+tm(S.plan.place.get(r.id)+pdur(r)):'')})
       ]),
       h('div',{class:'acts'},[h('span',{class:'chip '+r.status,text:ST[r.status]}),
         r.status==='pending'&&conflicts(r)?h('span',{class:'chip rejected',text:'被り'}):(r.status==='pending'&&clashes(r).length?h('span',{class:'chip pending',text:'調整OK'}):null)]),
@@ -1184,7 +1188,7 @@ function bandConfirmBtn(small){
   const n=S.reqs.filter(r=>r.status==='pending'&&r.kind==='band').length;
   const armed=S.armK;
   return h('button',{class:'btn'+(small?'':' primary'),disabled:n===0||null,onclick:()=>{if(!armed){S.armK=true;render();return}S.armK=false;confirmBand()},
-    text:armed?'もう一度押すとバンド練習を確定':'バンド練習だけ先に確定（'+n+'件）'});
+    text:armed?'もう一度押すとバンド練習を確定':'バンド練習だけ先に確定（'+n+'件'+(capOf()?'・各'+durLabel(capOf())+'まで':'')+'）'});
 }
 /* 部会（毎週ではない土曜 12:30〜13:30）をワンタップで入れる */
 function meetingCard(){
@@ -1231,7 +1235,14 @@ function adminView(){
     if(!S.armed){S.armed=true;render();return}
     S.armed=false;autoConfirm();
   },text:S.armed?'もう一度押すと確定します':'優先度順に自動で確定（希望 '+n+'件）'});
-  const kids=[h('h2',{text:'部会で確定する'}),
+  const capSel=h('select',{'aria-label':'確定するときの練習時間'},[[0,'希望どおり'],[2,'1時間'],[3,'1時間30分'],[4,'2時間']].map(o=>h('option',{value:o[0],text:o[1]})));
+  capSel.value=String(capOf());
+  capSel.addEventListener('change',()=>{lsSet('kitami-cap-'+S.ws,capSel.value);render()});
+  const pendN=S.reqs.filter(r=>r.status==='pending').length,badN=S.plan.bad.size;
+  const capCard=h('div',{class:'clashbox'+(badN?'':' okbox')},[h('div',{class:'row',style:'gap:8px'},[h('b',{text:'確定するときの練習時間'}),capSel,h('span',{class:'rank',text:'までにそろえる'})]),
+    h('div',{class:'sub',text:pendN?'この設定だと、希望 '+pendN+'件のうち '+(pendN-badN)+'件が入ります'+(badN?'（入らない '+badN+'件は見送り）':'（全部入ります）'):'まだ希望がありません'}),
+    h('div',{class:'hint',text:'2時間の希望でも、ここで「1時間」にすると全員1時間で確定します。週間表の「仮」の時間もこの設定で表示されます（この端末の運営画面だけ）。'})]);
+  const kids=[h('h2',{text:'部会で確定する'}),capCard,
     h('p',{text:'バンド練習だけ先に確定することもできます。ドラム練習・その他の希望はそのまま残るので、あとで調整してから下のボタンで確定してください。'}),
     h('div',{class:'row'},[bandConfirmBtn(false),S.armK?h('button',{class:'btn sm',onclick:()=>{S.armK=false;render()},text:'やめる'}):null]),h('p',{text:'優先度の高い順に、同じ優先度は先に出した順に、希望の時間帯の中で重ならないよう自動で並べて確定します。時間帯の中に入りきらない希望は「見送り」になり、希望一覧から個別に直せます。確定後は自由予約に切り替わります。'}),btn];
   if(S.armed)kids.push(h('button',{class:'btn sm',onclick:()=>{S.armed=false;render()},text:'やめる'}));
@@ -1496,7 +1507,7 @@ function defaultAddDay(){const t=mondayOf(new Date());if(t!==S.ws)return 0;retur
 function dayOcc(items){const occ=new Array(SLOTS).fill(false);items.filter(r=>r.status==='confirmed').forEach(r=>{for(let i=r.s;i<r.e;i++)occ[i]=true});return occ}
 function suggestDay(d,onlyBand){
   const items=live().filter(r=>r.day===d&&(r.status==='confirmed'||!onlyBand||r.kind==='band')),occ=dayOcc(items);
-  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:durOf(r)}));
+  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:pdur(r)}));
   if(!pend.length||feasible(pend,occ))return null;
   const W=weekLoad();
   const cand=pend.filter(r=>r.dur>MIN_SLOTS).sort((a,b)=>rankOf(b.kind)-rankOf(a.kind)||loadOf(b,W)-loadOf(a,W)||(b.createdAt||0)-(a.createdAt||0));
@@ -1565,8 +1576,8 @@ function openSuggest(){
    「だれを取り消せば（見送りにすれば）残りが全員入るか」を出す。バンド練習だけで見ることもできる */
 function conflictDay(d,onlyBand){
   const items=live().filter(r=>r.day===d&&(r.status==='confirmed'||(r.status==='pending'&&(!onlyBand||r.kind==='band'))));
-  const occ=dayOcc(items),sim=simulate(items);
-  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:durOf(r)}));
+  const occ=dayOcc(items),sim=simulate(items.map(capDur));
+  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:pdur(r)}));
   const bad=pend.filter(r=>sim.bad.has(r.id));
   if(!bad.length)return null;
   /* 入らない希望と時間帯でつながっている希望をまとめる */
@@ -2365,7 +2376,7 @@ function openDetail(id){
     h('div',{class:'rank',text:(r.rep&&r.band?'代表 '+r.rep+'　':'')+KINDS[r.kind]+(r.status==='pending'?'　希望の時間帯・練習 '+durLabel(durOf(r)):'')+(r.status==='pending'&&exText(r)?'　'+exText(r):'')})
   ];
   const t0=S.plan.place.get(r.id);
-  if(r.status==='pending'&&t0!=null)kids.push(h('div',{class:'rank',text:'仮の配置：'+tm(t0)+'–'+tm(t0+durOf(r))+'（部会で確定します）'}));
+  if(r.status==='pending'&&t0!=null)kids.push(h('div',{class:'rank',text:'仮の配置：'+tm(t0)+'–'+tm(t0+pdur(r))+'（部会で確定します）'}));
   const cb=r.status==='rejected'?null:clashBox(r);
   if(cb)kids.push(cb);
   const cal=calButtons(r);if(cal)kids.push(cal);

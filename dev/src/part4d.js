@@ -17,7 +17,7 @@ function defaultAddDay(){const t=mondayOf(new Date());if(t!==S.ws)return 0;retur
 function dayOcc(items){const occ=new Array(SLOTS).fill(false);items.filter(r=>r.status==='confirmed').forEach(r=>{for(let i=r.s;i<r.e;i++)occ[i]=true});return occ}
 function suggestDay(d,onlyBand){
   const items=live().filter(r=>r.day===d&&(r.status==='confirmed'||!onlyBand||r.kind==='band')),occ=dayOcc(items);
-  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:durOf(r)}));
+  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:pdur(r)}));
   if(!pend.length||feasible(pend,occ))return null;
   const W=weekLoad();
   const cand=pend.filter(r=>r.dur>MIN_SLOTS).sort((a,b)=>rankOf(b.kind)-rankOf(a.kind)||loadOf(b,W)-loadOf(a,W)||(b.createdAt||0)-(a.createdAt||0));
@@ -86,8 +86,8 @@ function openSuggest(){
    「だれを取り消せば（見送りにすれば）残りが全員入るか」を出す。バンド練習だけで見ることもできる */
 function conflictDay(d,onlyBand){
   const items=live().filter(r=>r.day===d&&(r.status==='confirmed'||(r.status==='pending'&&(!onlyBand||r.kind==='band'))));
-  const occ=dayOcc(items),sim=simulate(items);
-  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:durOf(r)}));
+  const occ=dayOcc(items),sim=simulate(items.map(capDur));
+  const pend=items.filter(r=>r.status==='pending').map(r=>Object.assign({},r,{dur:pdur(r)}));
   const bad=pend.filter(r=>sim.bad.has(r.id));
   if(!bad.length)return null;
   /* 入らない希望と時間帯でつながっている希望をまとめる */

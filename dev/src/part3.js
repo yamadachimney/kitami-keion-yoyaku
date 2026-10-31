@@ -75,7 +75,7 @@ function block(r,lane,n){
   let kids;
   if(flex&&t0!=null){
     /* 時間帯（点線の枠）の中に、仮の配置を帯で重ねる */
-    const d=durOf(r);
+    const d=pdur(r);
     kids=[h('div',{class:'plan',style:'top:'+((t0-r.s)*H)+'px;height:'+(d*H-1)+'px'},[
       h('span',{class:'n',text:nm(r)}),
       d>=2?h('span',{class:'t',text:'仮 '+tm(t0)+'–'+tm(t0+d)}):null
@@ -137,7 +137,7 @@ function actions(r,done){
   if(S.isAdmin){
     if(r.status==='pending'){
       a.push(h('button',{class:'btn sm primary',onclick:async()=>{
-        const d=durOf(r),t=S.plan.place.get(r.id),s=t!=null?t:r.s,e=s+d;
+        const d=pdur(r),t=S.plan.place.get(r.id),s=t!=null?t:r.s,e=s+d;
         if(S.reqs.some(o=>o.status==='confirmed'&&o.id!==r.id&&overlap(o,{day:r.day,s:s,e:e}))){toast('確定済みの予約と重なっています');return}
         await patchReq(r.id,{status:'confirmed',s:s,e:e,ws:r.s,we:r.e});after();
       },text:'確定'}));
